@@ -1,16 +1,13 @@
 import os
+import random
+import logging
+
 from dotenv import load_dotenv
 load_dotenv()
 
-import logging
-import random
-
 from flask import Flask, request, abort
 
-from linebot.v3 import (
-    WebhookHandler
-)
-
+from linebot.v3 import WebhookHandler
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -28,31 +25,29 @@ from linebot.v3.webhooks import (
     TextMessageContent,
     PostbackEvent
 )
-
 # ---------------- LOGGING ----------------
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
 
-# ---------------- TOKEN ----------------
+# ---------------- TOKEN (FIXED FOR RAILWAY) ----------------
 
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
 
-if not LINE_CHANNEL_ACCESS_TOKEN:
-    raise ValueError("LINE_CHANNEL_ACCESS_TOKEN not found in .env")
-
-if not LINE_CHANNEL_SECRET:
-    raise ValueError("LINE_CHANNEL_SECRET not found in .env")
+if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
+    raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN or LINE_CHANNEL_SECRET")
 
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# ---------------- FLASK APP ----------------
 
 app = Flask(__name__)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # ---------------- AI MESSAGES ----------------
 
