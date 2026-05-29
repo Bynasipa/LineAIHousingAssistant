@@ -271,13 +271,16 @@ def callback():
     body = request.get_data(as_text=True)
     signature = request.headers.get("X-Line-Signature")
 
+    print("BODY:", body)
+    print("SIGNATURE:", signature)
+
     try:
         handler.handle(body, signature)
     except Exception as e:
         print("Webhook error:", e)
-        abort(400)
+        return "OK", 200
 
-    return "OK"
+    return "OK", 200
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
