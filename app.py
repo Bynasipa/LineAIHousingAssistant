@@ -281,28 +281,49 @@ def callback():
     except Exception as e:
         print("ERROR:", e)
         print(traceback.format_exc())
-        # ВАЖНО: LINE всегда должен получать 200
-        return "OK", 200
 
+    # ALWAYS return 200 to LINE
     return "OK", 200
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
 
-        user_id = event.source.user_id
+            user_id = event.source.user_id
+            text = event.message.text.lower().strip()
 
-        text = event.message.text.lower().strip()
+            if text == "start":
+                start(line_bot_api, event.reply_token, user_id)
 
-        if text == "start":
-            start(line_bot_api, event.reply_token, user_id)
+    except Exception as e:
+        print("MESSAGE ERROR:", e)
+        print(traceback.format_exc())
 
 
 @handler.default()
 def default(event):
-    print("DEFAULT EVENT:", event)
+    print("UNHANDLED EVENT:", event)
+
+
+@handler.add(FollowEvent)
+def handle_follow(event):
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="👋 Thanks for adding the bot!")]
+                )
+            )
+
+    except Exception as e:
+        print("FOLLOW ERROR:", e)
+        print(traceback.format_exc())
 
 # ---------------- FOLLOW (AUTO WELCOME) ----------------
 
