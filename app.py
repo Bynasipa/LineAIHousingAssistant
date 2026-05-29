@@ -266,6 +266,20 @@ def start(line_bot_api, reply_token, user_id):
 
 # ---------------- MESSAGE ----------------
 
+@app.route("/callback", methods=["POST"])
+def callback():
+    body = request.get_data(as_text=True)
+    signature = request.headers.get("X-Line-Signature")
+
+    try:
+        handler.handle(body, signature)
+    except Exception as e:
+        print("Webhook error:", e)
+        abort(400)
+
+    return "OK"
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
@@ -288,17 +302,6 @@ def handle_follow(event):
 
         start(line_bot_api, event.reply_token, user_id)
 
-# ---------------- MESSAGE ----------------
-
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-
-        user_id = event.source.user_id
-
-        if event.message.text.lower() == "start":
-            start(line_bot_api, event.reply_token, user_id)
 
 # ---------------- POSTBACKS ----------------
 
