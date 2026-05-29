@@ -8,6 +8,7 @@ load_dotenv()
 from flask import Flask, request, abort
 
 from linebot.v3 import WebhookHandler
+
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
@@ -23,8 +24,11 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
-    PostbackEvent
+    PostbackEvent,
+    FollowEvent
 )
+
+
 # ---------------- LOGGING ----------------
 
 logging.basicConfig(
@@ -260,20 +264,29 @@ def start(line_bot_api, reply_token, user_id):
         )
     )
 
-# ---------------- WEBHOOK ----------------
+# ---------------- MESSAGE ----------------
 
-@app.route("/callback", methods=["POST"])
-def callback():
-    body = request.get_data(as_text=True)
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
 
-    signature = request.headers.get('X-Line-Signature')
+        user_id = event.source.user_id
 
-    if not signature:
-        abort(400)
+        if event.message.text.lower() == "start":
+            start(line_bot_api, event.reply_token, user_id)
 
-    handler.handle(body, signature)
 
-    return "OK"
+# ---------------- FOLLOW (AUTO WELCOME) ----------------
+
+@handler.add(FollowEvent)
+def handle_follow(event):
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+
+        user_id = event.source.user_id
+
+        start(line_bot_api, event.reply_token, user_id)
 
 # ---------------- MESSAGE ----------------
 
