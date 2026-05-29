@@ -1,6 +1,7 @@
 import os
 import random
 import logging
+import traceback
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -266,63 +267,31 @@ def start(line_bot_api, reply_token, user_id):
 
 # ---------------- MESSAGE ----------------
 
-import traceback
-
-@app.route("/callback", methods=["POST"])
-def callback():
-    body = request.get_data(as_text=True)
-    signature = request.headers.get("X-Line-Signature")
-
-    print("BODY:", body)
-    print("SIGNATURE:", signature)
-
-    try:
-        handler.handle(body, signature)
-    except Exception as e:
-        print("ERROR:", e)
-        print(traceback.format_exc())
-
-    # ALWAYS return 200 to LINE
-    return "OK", 200
-
-
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    print("EVENT WORKS")
+
     try:
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
 
-            user_id = event.source.user_id
             text = event.message.text.lower().strip()
 
+            # simple test reply (like Telegram bot)
+            reply_text = "Hello from bot"
+
             if text == "start":
-                start(line_bot_api, event.reply_token, user_id)
-
-    except Exception as e:
-        print("MESSAGE ERROR:", e)
-        print(traceback.format_exc())
-
-
-@handler.default()
-def default(event):
-    print("UNHANDLED EVENT:", event)
-
-
-@handler.add(FollowEvent)
-def handle_follow(event):
-    try:
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
+                reply_text = "Bot is working ✅"
 
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text="👋 Thanks for adding the bot!")]
+                    messages=[TextMessage(text=reply_text)]
                 )
             )
 
     except Exception as e:
-        print("FOLLOW ERROR:", e)
+        print("MESSAGE ERROR:", e)
         print(traceback.format_exc())
 
 # ---------------- FOLLOW (AUTO WELCOME) ----------------
