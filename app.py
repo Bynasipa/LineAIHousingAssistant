@@ -265,7 +265,11 @@ def start(line_bot_api, reply_token, user_id):
 @app.route("/callback", methods=["POST"])
 def callback():
     body = request.get_data(as_text=True)
-    signature = request.headers['X-Line-Signature']
+
+    signature = request.headers.get('X-Line-Signature')
+
+    if not signature:
+        abort(400)
 
     handler.handle(body, signature)
 
