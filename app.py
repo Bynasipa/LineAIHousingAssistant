@@ -266,6 +266,8 @@ def start(line_bot_api, reply_token, user_id):
 
 # ---------------- MESSAGE ----------------
 
+import traceback
+
 @app.route("/callback", methods=["POST"])
 def callback():
     body = request.get_data(as_text=True)
@@ -277,7 +279,9 @@ def callback():
     try:
         handler.handle(body, signature)
     except Exception as e:
-        print("Webhook error:", e)
+        print("ERROR:", e)
+        print(traceback.format_exc())
+        # ВАЖНО: LINE всегда должен получать 200
         return "OK", 200
 
     return "OK", 200
@@ -290,9 +294,15 @@ def handle_message(event):
 
         user_id = event.source.user_id
 
-        if event.message.text.lower() == "start":
+        text = event.message.text.lower().strip()
+
+        if text == "start":
             start(line_bot_api, event.reply_token, user_id)
 
+
+@handler.default()
+def default(event):
+    print("DEFAULT EVENT:", event)
 
 # ---------------- FOLLOW (AUTO WELCOME) ----------------
 
