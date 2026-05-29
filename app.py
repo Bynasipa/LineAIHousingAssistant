@@ -298,12 +298,20 @@ def handle_message(event):
 
 @handler.add(FollowEvent)
 def handle_follow(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
 
-        user_id = event.source.user_id
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="👋 Thanks for adding the bot! Type 'start'")]
+                )
+            )
 
-        start(line_bot_api, event.reply_token, user_id)
+    except Exception as e:
+        print("FOLLOW ERROR:", e)
+        print(traceback.format_exc())
 
 
 # ---------------- POSTBACKS ----------------
