@@ -1,4 +1,3 @@
-raise Exception("THIS FILE IS RUNNING")
 import os
 import random
 import logging
@@ -57,7 +56,35 @@ def get_user(user_id):
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    print("🔥 CALLBACK FUNCTION EXECUTED")
+    body = request.get_data(as_text=True)
+    signature = request.headers.get("X-Line-Signature")
+
+    print("🔥 CALLBACK HIT")
+
+    try:
+        events = parser.parse(body, signature)
+
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+
+            for event in events:
+
+                print("EVENT TYPE:", type(event))
+
+                if isinstance(event, MessageEvent):
+                    handle_message(line_bot_api, event)
+
+                elif isinstance(event, FollowEvent):
+                    handle_follow(line_bot_api, event)
+
+                elif isinstance(event, PostbackEvent):
+                    print("POSTBACK:", event.postback.data)
+                    handle_postback(line_bot_api, event)
+
+    except Exception as e:
+        print("ERROR:", e)
+        print(traceback.format_exc())
+
     return "OK"
 
 # ---------------- MESSAGE ----------------
