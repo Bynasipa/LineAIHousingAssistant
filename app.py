@@ -57,33 +57,21 @@ def callback():
     signature = request.headers.get("X-Line-Signature")
 
     print("🔥 CALLBACK HIT")
+    print("BODY:", body)
+    print("SIGNATURE:", signature)
 
     try:
         events = parser.parse(body, signature)
+        print("EVENTS:", events)
 
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
-
-            for event in events:
-
-                if isinstance(event, MessageEvent):
-                    print("🔥 MESSAGE EVENT")
-                    handle_message(line_bot_api, event)
-
-                elif isinstance(event, FollowEvent):
-                    print("🔥 FOLLOW EVENT")
-                    handle_follow(line_bot_api, event)
-
-                elif isinstance(event, PostbackEvent):
-                    print("🔥 POSTBACK EVENT")
-                    handle_postback(line_bot_api, event)
+        for event in events:
+            print("🔥 EVENT TYPE:", type(event))
 
     except Exception as e:
-        print("ERROR:", e)
+        print("❌ PARSE ERROR:", e)
         print(traceback.format_exc())
 
     return "OK"
-
 # ---------------- MESSAGE ----------------
 def handle_message(line_bot_api, event):
     text = event.message.text.lower().strip()
