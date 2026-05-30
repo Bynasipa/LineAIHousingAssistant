@@ -1,3 +1,4 @@
+raise Exception("THIS FILE IS RUNNING")
 import os
 import random
 import logging
