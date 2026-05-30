@@ -3,7 +3,7 @@ import random
 import logging
 import traceback
 
-print("🔥 APP STARTED")
+print("🔥 THIS IS THE ACTIVE FILE")
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -56,18 +56,7 @@ def get_user(user_id):
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    body = request.get_data(as_text=True)
-    signature = request.headers.get("X-Line-Signature")
-
-    print("🔥 CALLBACK HIT")
-    print("BODY:", body)
-
-    try:
-        return "OK"
-
-    except Exception as e:
-        print("ERROR:", e)
-
+    print("🔥 CALLBACK FUNCTION EXECUTED")
     return "OK"
 
 # ---------------- MESSAGE ----------------
