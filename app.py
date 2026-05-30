@@ -61,7 +61,11 @@ def callback():
 
     print("🔥 CALLBACK HIT")
 
-    handler.handle(body, signature)
+    try:
+        handler.handle(body, signature)
+    except Exception as e:
+        print("❌ HANDLER ERROR:", e)
+
     return "OK"
 
 # ---------------- AI MESSAGES ----------------
