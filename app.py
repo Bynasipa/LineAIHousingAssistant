@@ -53,6 +53,7 @@ def get_user(user_id):
     return user_state[user_id]
 
 # ---------------- CALLBACK ----------------
+
 @app.route("/callback", methods=["POST"])
 def callback():
     body = request.get_data(as_text=True)
@@ -60,20 +61,15 @@ def callback():
 
     print("🔥 CALLBACK HIT")
     print("BODY:", body)
-    print("SIGNATURE:", signature)
 
     try:
-        events = parser.parse(body, signature)
-        print("EVENTS:", events)
-
-        for event in events:
-            print("🔥 EVENT TYPE:", type(event))
+        return "OK"
 
     except Exception as e:
-        print("❌ PARSE ERROR:", e)
-        print(traceback.format_exc())
+        print("ERROR:", e)
 
     return "OK"
+
 # ---------------- MESSAGE ----------------
 def handle_message(line_bot_api, event):
     text = event.message.text.lower().strip()
