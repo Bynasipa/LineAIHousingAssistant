@@ -54,6 +54,16 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 app = Flask(__name__)
 
+@app.route("/callback", methods=["POST"])
+def callback():
+    signature = request.headers.get("X-Line-Signature")
+    body = request.get_data(as_text=True)
+
+    print("🔥 CALLBACK HIT")
+
+    handler.handle(body, signature)
+    return "OK"
+
 # ---------------- AI MESSAGES ----------------
 
 friendly_messages = {
@@ -277,16 +287,14 @@ def handle_message(event):
 
             text = event.message.text.lower().strip()
 
-            # simple test reply (like Telegram bot)
-            reply_text = "Hello from bot"
-
             if text == "start":
-                reply_text = "Bot is working ✅"
+                start(line_bot_api, event.reply_token, event.source.user_id)
+                return
 
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text=reply_text)]
+                    messages=[TextMessage(text="Hello from bot")]
                 )
             )
 
