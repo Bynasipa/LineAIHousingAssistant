@@ -1,70 +1,62 @@
 import os
-import random
 import logging
+import random
 import traceback
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, request, abort
-
-from linebot.v3 import WebhookHandler
+from flask import Flask, request
 
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
-    PushMessageRequest,
     TextMessage,
     ImageMessage,
     FlexMessage,
-    FlexContainer
+    FlexContainer,
+    PushMessageRequest
 )
+
+from linebot.v3.webhook import WebhookHandler
 
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
-    PostbackEvent,
-    FollowEvent
+    FollowEvent,
+    PostbackEvent
 )
-
 
 # ---------------- LOGGING ----------------
+logging.basicConfig(level=logging.INFO)
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-
-logger = logging.getLogger(__name__)
-
-# ---------------- TOKEN (FIXED FOR RAILWAY) ----------------
-
-LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
-LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
+# ---------------- ENV ----------------
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
 if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
-    raise ValueError("Missing LINE_CHANNEL_ACCESS_TOKEN or LINE_CHANNEL_SECRET")
+    raise ValueError("Missing LINE env variables")
 
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
+
+# ---------------- FLASK ----------------
+app = Flask(__name__)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ---------------- FLASK APP ----------------
-
-app = Flask(__name__)
-
+# ---------------- CALLBACK ----------------
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
+    signature = request.headers.get("X-Line-Signature")
 
     print("🔥 CALLBACK HIT")
 
     try:
         handler.handle(body, signature)
     except Exception as e:
-        print("❌ HANDLER ERROR:", e)
+        print("ERROR:", e)
 
     return "OK"
 
