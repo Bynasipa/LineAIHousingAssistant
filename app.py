@@ -3,6 +3,8 @@ import random
 import logging
 import traceback
 
+print("🔥 APP STARTED")
+
 from dotenv import load_dotenv
 load_dotenv()
 
