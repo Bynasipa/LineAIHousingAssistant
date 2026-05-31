@@ -13,7 +13,6 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage,
     FlexMessage,
-    FlexContainer,
     ImageMessage
 )
 
@@ -238,38 +237,71 @@ def callback():
                 # ---------------- MESSAGE ----------------
                 if isinstance(event, MessageEvent):
 
-                    if event.message.text.lower() == "start":
-                        user_state[user_id] = {}
+                    if hasattr(event.message, "text"):
 
-                        bubble = {
-                            "type": "bubble",
-                            "body": {
-                                "type": "box",
-                                "layout": "vertical",
-                                "contents": [
-                                    {"type": "text", "text": "🏡 AI Housing Assistant"},
-                                    {"type": "text", "text":
-                                        "I’ll help you find the right apartment in Austin step by step."}
-                                ]
-                            },
-                            "footer": {
-                                "type": "box",
-                                "layout": "vertical",
-                                "contents": [
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "🤖 Friendly",
-                                                "data": "assistant_friendly"}},
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "📊 Guide",
-                                                "data": "assistant_guide"}},
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "🧠 Expert",
-                                                "data": "assistant_expert"}}
-                                ]
+                        user_text = event.message.text.lower()
+
+                        # -------- START --------
+                        if user_text == "start":
+                            user_state[user_id] = {}
+
+                            bubble = {
+                                "type": "bubble",
+                                "body": {
+                                    "type": "box",
+                                    "layout": "vertical",
+                                    "contents": [
+                                        {
+                                            "type": "text",
+                                            "text": "🏡 AI Housing Assistant",
+                                            "weight": "bold",
+                                            "size": "lg"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "text": "I’ll help you find the right apartment in Austin step by step.",
+                                            "wrap": True,
+                                            "margin": "md"
+                                        }
+                                    ]
+                                },
+                                "footer": {
+                                    "type": "box",
+                                    "layout": "vertical",
+                                    "spacing": "sm",
+                                    "contents": [
+                                        {
+                                            "type": "button",
+                                            "style": "primary",
+                                            "action": {
+                                                "type": "postback",
+                                                "label": "🤖 Friendly",
+                                                "data": "assistant_friendly"
+                                            }
+                                        },
+                                        {
+                                            "type": "button",
+                                            "style": "primary",
+                                            "action": {
+                                                "type": "postback",
+                                                "label": "📊 Guide",
+                                                "data": "assistant_guide"
+                                            }
+                                        },
+                                        {
+                                            "type": "button",
+                                            "style": "primary",
+                                            "action": {
+                                                "type": "postback",
+                                                "label": "🧠 Expert",
+                                                "data": "assistant_expert"
+                                            }
+                                        }
+                                    ]
+                                }
                             }
-                        }
 
-                        send_flex(line_bot_api, event.reply_token, bubble)
+                            send_flex(line_bot_api, event.reply_token, bubble)
 
                 # ---------------- POSTBACK ----------------
                 elif isinstance(event, PostbackEvent):
@@ -543,6 +575,5 @@ def send_next_step(line_bot_api, reply_token):
 
 # ---------------- RUN ----------------
 
-if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
