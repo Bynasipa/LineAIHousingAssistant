@@ -383,16 +383,26 @@ def callback():
                             line_bot_api,
                             event.reply_token,
                             "🏙 I found 3 apartments in Downtown Austin\n"
-                                 "💰 Price range: $282k – $300k"
+                            "💰 Price range: $282k – $300k"
                         )
 
                         for key in ["luxor", "miracle", "victory"]:
-                            text, images = send_apartment(line_bot_api, event.reply_token, user_id, key)
+                            apartment = apartments[key]
+
+                            text = (
+                                f"🏢 {apartment['title']}\n"
+                                f"📍 {apartment['location']}\n"
+                                f"💰 {apartment['price']}\n"
+                                f"📐 {apartment['size']}\n\n"
+                                f"{apartment['description']}"
+                            )
 
                             line_bot_api.push_message(
                                 PushMessageRequest(
                                     to=user_id,
-                                    messages=[TextMessage(text=text)] + images
+                                    messages=[
+                                        TextMessage(text=text)
+                                    ]
                                 )
                             )
 
