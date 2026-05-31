@@ -212,20 +212,25 @@ def send_apartment(line_bot_api, reply_token, user_id, key):
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    body = request.get_data(as_text=True)
-    signature = request.headers.get("X-Line-Signature")
 
     try:
-        events = parser.parse(body, signature)
+        body = request.get_data(as_text=True)
+        signature = request.headers.get("X-Line-Signature")
+
+        try:
+            events = parser.parse(body, signature)
+        except Exception:
+            logging.error(traceback.format_exc())
+            return "OK", 200
 
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
 
             for event in events:
 
-                user_id = event.source.user_id if hasattr(event.source, "user_id") else None
+                user_id = getattr(event.source, "user_id", None)
 
-                # ---------------- START ----------------
+                # ---------------- MESSAGE ----------------
                 if isinstance(event, MessageEvent):
 
                     if event.message.text.lower() == "start":
@@ -250,22 +255,24 @@ def callback():
                                      "action": {"type": "postback", "label": "🤖 Friendly",
                                                 "data": "assistant_friendly"}},
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "📊 Guide", "data": "assistant_guide"}},
+                                     "action": {"type": "postback", "label": "📊 Guide",
+                                                "data": "assistant_guide"}},
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "🧠 Expert", "data": "assistant_expert"}}
+                                     "action": {"type": "postback", "label": "🧠 Expert",
+                                                "data": "assistant_expert"}}
                                 ]
                             }
                         }
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-                # ---------------- POSTBACK (FULL FIXED BLOCK) ----------------
+                # ---------------- POSTBACK ----------------
                 elif isinstance(event, PostbackEvent):
 
                     data = event.postback.data
                     user = get_user(user_id)
 
-                    # -------- ASSISTANT --------
+                    # -------- assistant --------
                     if data.startswith("assistant_"):
                         user["assistant_type"] = data.split("_")[1]
 
@@ -279,55 +286,67 @@ def callback():
                                 "type": "box",
                                 "contents": [
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "Austin", "data": "city_austin"}}
+                                     "action": {"type": "postback",
+                                                "label": "Austin",
+                                                "data": "city_austin"}}
                                 ]
                             }
                         }
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-                    # -------- CITY --------
+                    # -------- city --------
                     elif data.startswith("city_"):
 
                         bubble = {
                             "type": "bubble",
-                            "body": {"type": "box", "contents": [{"type": "text", "text": "📍 Step 2: Area"}]},
+                            "body": {
+                                "type": "box",
+                                "contents": [{"type": "text", "text": "📍 Step 2: Area"}]
+                            },
                             "footer": {
                                 "type": "box",
                                 "contents": [
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "Downtown", "data": "area_downtown"}}
+                                     "action": {"type": "postback",
+                                                "label": "Downtown",
+                                                "data": "area_downtown"}}
                                 ]
                             }
                         }
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-                    # -------- AREA --------
+                    # -------- area --------
                     elif data.startswith("area_"):
 
                         bubble = {
                             "type": "bubble",
-                            "body": {"type": "box", "contents": [{"type": "text", "text": "💳 Payment method"}]},
+                            "body": {
+                                "type": "box",
+                                "contents": [{"type": "text", "text": "💳 Payment method"}]
+                            },
                             "footer": {
                                 "type": "box",
                                 "contents": [
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "Mortgage", "data": "payment_mortgage"}}
+                                     "action": {"type": "postback",
+                                                "label": "Mortgage",
+                                                "data": "payment_mortgage"}}
                                 ]
                             }
                         }
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-                    # -------- PAYMENT --------
+                    # -------- payment --------
                     elif data.startswith("payment_"):
 
                         send_text(
                             line_bot_api,
                             event.reply_token,
                             "🏙 I found 3 apartments in Downtown Austin\n"
-                            "💰 Price range: $282k – $300k"
+                                 "💰 Price range: $282k – $300k"
                         )
 
                         for key in ["luxor", "miracle", "victory"]:
@@ -340,42 +359,47 @@ def callback():
                                 )
                             )
 
-                    # -------- CHOICES --------
+                    # -------- LUXOR --------
                     elif data == "choose_luxor":
 
                         send_text(
                             line_bot_api,
                             event.reply_token,
-                            "✨ I’d say Luxor is a really great choice if you want a modern,"
-                            " comfortable place to live — it feels very easy and practical.\n\n"
-                            "It’s located in the business center, which makes everyday life much simpler, "
+                            "🏢 Luxor Apartment\n\n"
+                            "✨ I’d say Luxor is a really great choice if you want a modern, comfortable place to live — "
+                            "it feels very easy and practical.\n\n"
+                            "🏙 It’s located in the business center, which makes everyday life much simpler, "
                             "and free high-speed Wi-Fi is already included."
                         )
 
+                    # -------- MIRACLE --------
                     elif data == "choose_miracle":
 
                         send_text(
                             line_bot_api,
                             event.reply_token,
+                            "🏢 Miracle Garden Apartment\n\n"
                             "🌿 Miracle Garden is a wonderful option if you prefer a calm and peaceful lifestyle — "
                             "the whole area feels very relaxed and comfortable for everyday living.\n\n"
-                            "There’s a nearby school, beautiful green surroundings, "
+                            "🌳 There’s a nearby school, beautiful green surroundings, "
                             "and free resident parking, which is a really valuable advantage in city life."
                         )
 
+                    # -------- VICTORY --------
                     elif data == "choose_victory":
 
                         send_text(
                             line_bot_api,
                             event.reply_token,
-                            "🏛 Victory Mansion is a great option "
-                            "if you're thinking about long-term value and investment potential.\n\n"
-                            "It has a strong character, a friendly and stable community of neighbors, "
+                            "🏢 Victory Mansion\n\n"
+                            "🏛 Victory Mansion is a great option if you're thinking about long-term value and investment potential.\n\n"
+                            "💡 It has a strong character, a friendly and stable community of neighbors, "
                             "and a warm atmosphere that makes the building feel very welcoming.\n\n"
-                            "One of the unique highlights here is a daily free delivery of bread and milk, "
+                            "🍞 One of the unique highlights here is a daily free delivery of bread and milk, "
                             "which adds a really cozy and special touch to everyday living."
                         )
 
+                    # -------- HELP --------
                     elif data == "help_choose":
 
                         send_text(
@@ -383,16 +407,11 @@ def callback():
                             event.reply_token,
                             "💡 Here’s a simple guide to help you decide:\n\n"
                             "🏢 Luxor Apartment\n"
-                            "A great option if you want modern comfort and easy everyday living. "
-                            "Located in the business center with free Wi-Fi included.\n\n"
-
+                            "A great option if you want modern comfort and easy everyday living.\n\n"
                             "🌿 Miracle Garden Apartment\n"
-                            "Perfect if you prefer a calm and balanced lifestyle. "
-                            "Green area, school nearby, free parking.\n\n"
-
+                            "Perfect if you prefer a calm and balanced lifestyle.\n\n"
                             "🏛 Victory Mansion\n"
-                            "Best for long-term investment potential, historic atmosphere, "
-                            "and unique lifestyle perks."
+                            "Best suited for long-term value and investment potential."
                         )
 
                     # -------- REPEAT --------
@@ -445,15 +464,7 @@ def callback():
                                         "type": "button",
                                         "action": {
                                             "type": "postback",
-                                            "label": "🏦 Mortgage Consultation",
-                                            "data": "mortgage_help"
-                                        }
-                                    },
-                                    {
-                                        "type": "button",
-                                        "action": {
-                                            "type": "postback",
-                                            "label": "🔄 Compare Apartments Again",
+                                            "label": "🔄 Compare Again",
                                             "data": "repeat"
                                         }
                                     }
@@ -463,9 +474,11 @@ def callback():
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-    except Exception as e:
+        return "OK", 200
+
+    except Exception:
         logging.error(traceback.format_exc())
-        abort(500)
+        return "OK", 200
 
 
 # ---------------- NEXT STEP ----------------
