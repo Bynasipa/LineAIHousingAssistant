@@ -37,10 +37,12 @@ parser = WebhookParser(LINE_CHANNEL_SECRET)
 
 user_state = {}
 
+
 def get_user(user_id):
     if user_id not in user_state:
         user_state[user_id] = {}
     return user_state[user_id]
+
 
 # ---------------- AI MESSAGES ----------------
 
@@ -156,6 +158,7 @@ apartments = {
     }
 }
 
+
 # ---------------- HELPERS ----------------
 
 def send_text(line_bot_api, reply_token, text):
@@ -166,6 +169,7 @@ def send_text(line_bot_api, reply_token, text):
         )
     )
 
+
 def send_flex(line_bot_api, reply_token, bubble):
     line_bot_api.reply_message(
         ReplyMessageRequest(
@@ -174,8 +178,8 @@ def send_flex(line_bot_api, reply_token, bubble):
         )
     )
 
-def send_apartment(line_bot_api, reply_token, user_id, key):
 
+def send_apartment(line_bot_api, reply_token, user_id, key):
     apartment = apartments[key]
     user = get_user(user_id)
 
@@ -203,11 +207,11 @@ def send_apartment(line_bot_api, reply_token, user_id, key):
 
     return text, images
 
+
 # ---------------- WEBHOOK ----------------
 
 @app.route("/callback", methods=["POST"])
 def callback():
-
     body = request.get_data(as_text=True)
     signature = request.headers.get("X-Line-Signature")
 
@@ -225,7 +229,6 @@ def callback():
                 if isinstance(event, MessageEvent):
 
                     if event.message.text.lower() == "start":
-
                         user_state[user_id] = {}
 
                         bubble = {
@@ -236,7 +239,7 @@ def callback():
                                 "contents": [
                                     {"type": "text", "text": "🏡 AI Housing Assistant"},
                                     {"type": "text", "text":
-                                     "I’ll help you find the right apartment in Austin step by step."}
+                                        "I’ll help you find the right apartment in Austin step by step."}
                                 ]
                             },
                             "footer": {
@@ -244,7 +247,8 @@ def callback():
                                 "layout": "vertical",
                                 "contents": [
                                     {"type": "button",
-                                     "action": {"type": "postback", "label": "🤖 Friendly", "data": "assistant_friendly"}},
+                                     "action": {"type": "postback", "label": "🤖 Friendly",
+                                                "data": "assistant_friendly"}},
                                     {"type": "button",
                                      "action": {"type": "postback", "label": "📊 Guide", "data": "assistant_guide"}},
                                     {"type": "button",
@@ -255,12 +259,13 @@ def callback():
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
-                # ---------------- POSTBACK ----------------
+                # ---------------- POSTBACK (FULL FIXED BLOCK) ----------------
                 elif isinstance(event, PostbackEvent):
 
                     data = event.postback.data
                     user = get_user(user_id)
 
+                    # -------- ASSISTANT --------
                     if data.startswith("assistant_"):
                         user["assistant_type"] = data.split("_")[1]
 
@@ -281,6 +286,7 @@ def callback():
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
+                    # -------- CITY --------
                     elif data.startswith("city_"):
 
                         bubble = {
@@ -297,6 +303,7 @@ def callback():
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
+                    # -------- AREA --------
                     elif data.startswith("area_"):
 
                         bubble = {
@@ -313,6 +320,7 @@ def callback():
 
                         send_flex(line_bot_api, event.reply_token, bubble)
 
+                    # -------- PAYMENT --------
                     elif data.startswith("payment_"):
 
                         send_text(
@@ -332,6 +340,7 @@ def callback():
                                 )
                             )
 
+                    # -------- CHOICES --------
                     elif data == "choose_luxor":
 
                         send_text(
@@ -375,18 +384,18 @@ def callback():
                             "💡 Here’s a simple guide to help you decide:\n\n"
                             "🏢 Luxor Apartment\n"
                             "A great option if you want modern comfort and easy everyday living. "
-                            "Located in the business center with free Wi-Fi included, "
-                            "it feels practical and move-in ready.\n\n"
+                            "Located in the business center with free Wi-Fi included.\n\n"
+
                             "🌿 Miracle Garden Apartment\n"
                             "Perfect if you prefer a calm and balanced lifestyle. "
-                            "The area feels peaceful and green, there’s a nearby school, "
-                            "and free parking makes daily city life much easier.\n\n"
+                            "Green area, school nearby, free parking.\n\n"
+
                             "🏛 Victory Mansion\n"
-                            "Best suited for long-term potential and future value. "
-                            "It has a unique historic atmosphere, friendly neighbors, "
-                            "and even free bread & milk delivery for residents."
+                            "Best for long-term investment potential, historic atmosphere, "
+                            "and unique lifestyle perks."
                         )
 
+                    # -------- REPEAT --------
                     elif data == "repeat":
 
                         send_text(line_bot_api, event.reply_token, "🔄 Showing apartments again...")
@@ -401,20 +410,54 @@ def callback():
                                 )
                             )
 
+                    # -------- FINISH --------
                     elif data == "finish":
 
                         bubble = {
                             "type": "bubble",
                             "body": {
                                 "type": "box",
-                                "contents": [{
-                                    "type": "text",
-                                    "text":
-                                        "✨ Thank you for using AI Housing Assistant!\n\n"
-                                        "🏡 Your selection process is complete.\n\n"
-                                        "If you’ve made a decision, you can take the next step below.\n\n"
-                                        "I’m always here if you need more options or comparisons."
-                                }]
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "text",
+                                        "text":
+                                            "✨ Thank you for using AI Housing Assistant!\n\n"
+                                            "🏡 Your selection process is complete.\n\n"
+                                            "If you’ve made a decision, you can take the next step below.\n\n"
+                                            "I’m always here if you need more options or comparisons."
+                                    }
+                                ]
+                            },
+                            "footer": {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "button",
+                                        "action": {
+                                            "type": "postback",
+                                            "label": "📞 Contact Agent",
+                                            "data": "contact_agent"
+                                        }
+                                    },
+                                    {
+                                        "type": "button",
+                                        "action": {
+                                            "type": "postback",
+                                            "label": "🏦 Mortgage Consultation",
+                                            "data": "mortgage_help"
+                                        }
+                                    },
+                                    {
+                                        "type": "button",
+                                        "action": {
+                                            "type": "postback",
+                                            "label": "🔄 Compare Apartments Again",
+                                            "data": "repeat"
+                                        }
+                                    }
+                                ]
                             }
                         }
 
@@ -422,11 +465,12 @@ def callback():
 
     except Exception as e:
         logging.error(traceback.format_exc())
+        abort(500)
+
 
 # ---------------- NEXT STEP ----------------
 
 def send_next_step(line_bot_api, reply_token):
-
     bubble = {
         "type": "bubble",
         "body": {
@@ -478,10 +522,12 @@ def send_next_step(line_bot_api, reply_token):
         )
     )
 
+
 # ---------------- MAIN ----------------
 
 def main():
     app.run(host="0.0.0.0", port=5000)
+
 
 # ---------------- RUN ----------------
 
