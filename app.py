@@ -211,8 +211,9 @@ def send_apartment(line_bot_api, reply_token, user_id, key):
 # ---------------- WEBHOOK ----------------
 
 @app.route("/callback", methods=["POST"])
-def callback():
 
+
+def callback():
     try:
         body = request.get_data(as_text=True)
         signature = request.headers.get("X-Line-Signature")
@@ -229,6 +230,10 @@ def callback():
             for event in events:
 
                 user_id = getattr(event.source, "user_id", None)
+
+                # ❗ FIX: avoid crash
+                if not user_id:
+                    continue
 
                 # ---------------- MESSAGE ----------------
                 if isinstance(event, MessageEvent):
@@ -473,12 +478,12 @@ def callback():
                         }
 
                         send_flex(line_bot_api, event.reply_token, bubble)
-
-        return "OK", 200
+            return "OK", 200
 
     except Exception:
-        logging.error(traceback.format_exc())
-        return "OK", 200
+           logging.error(traceback.format_exc())
+
+    return "OK", 200
 
 
 # ---------------- NEXT STEP ----------------
@@ -536,13 +541,8 @@ def send_next_step(line_bot_api, reply_token):
     )
 
 
-# ---------------- MAIN ----------------
-
-def main():
-    app.run(host="0.0.0.0", port=5000)
-
-
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
