@@ -3,41 +3,30 @@ import random
 import logging
 import traceback
 
-print("🔥 THIS IS THE ACTIVE FILE")
-
-from dotenv import load_dotenv
-load_dotenv()
-
-from flask import Flask, request
-
-from linebot.v3.webhook import WebhookParser
+from flask import Flask, request, abort
 
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
-    TextMessage,
     PushMessageRequest,
-    ImageMessage,
+    TextMessage,
     FlexMessage,
-    FlexContainer
+    FlexContainer,
+    ImageMessage
 )
 
-from linebot.v3.webhooks import (
-    MessageEvent,
-    TextMessageContent,
-    FollowEvent,
-    PostbackEvent
-)
+from linebot.v3.webhook import WebhookParser
+from linebot.v3.webhooks import MessageEvent, FollowEvent, PostbackEvent
 
 # ---------------- LOGGING ----------------
-logging.basicConfig(level=logging.INFO)
 
-# ---------------- APP ----------------
+logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
-# ---------------- ENV ----------------
+# ---------------- TOKEN ----------------
+
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
@@ -45,6 +34,7 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
 
 # ---------------- STATE ----------------
+
 user_state = {}
 
 def get_user(user_id):
@@ -52,14 +42,174 @@ def get_user(user_id):
         user_state[user_id] = {}
     return user_state[user_id]
 
-# ---------------- CALLBACK ----------------
+# ---------------- AI MESSAGES ----------------
+
+friendly_messages = {
+    "luxor": [
+        "✨ A very cozy and modern apartment in the city center.",
+        "🏡 Perfect for a comfortable and stress-free lifestyle.",
+        "💙 Great option if you want convenience and modern living."
+    ],
+    "miracle": [
+        "🌿 Peaceful atmosphere with a balanced lifestyle.",
+        "🏡 Excellent for families and calm living.",
+        "✨ Green surroundings make this place very relaxing."
+    ],
+    "victory": [
+        "🏛 Unique apartment with historic charm.",
+        "✨ Full of personality and strong future potential.",
+        "💡 Great opportunity for creative renovation ideas."
+    ]
+}
+
+guide_messages = {
+    "luxor": [
+        "📊 Excellent downtown location with stable property value.",
+        "📍 Strong infrastructure and transport accessibility.",
+        "💰 Good option for buyers seeking convenience."
+    ],
+    "miracle": [
+        "📊 Family-oriented neighborhood with green zones.",
+        "📍 Parking and recent renovation increase livability.",
+        "💰 Strong balance between comfort and price."
+    ],
+    "victory": [
+        "📊 Strong investment potential after renovation.",
+        "📍 Historic district increases long-term value.",
+        "💰 Attractive option for long-term investors."
+    ]
+}
+
+expert_messages = {
+    "luxor": [
+        "🧠 Low-risk premium real estate asset.",
+        "📊 Strong liquidity in central business district.",
+        "🏗 Stable long-term appreciation potential."
+    ],
+    "miracle": [
+        "🧠 Balanced growth profile with medium risk.",
+        "📊 Green-zone demand improves market stability.",
+        "🏗 Suitable for lifestyle-focused portfolios."
+    ],
+    "victory": [
+        "🧠 High-risk, high-reward investment opportunity.",
+        "📊 Renovation arbitrage potential is significant.",
+        "🏗 Scarcity in historic areas supports future growth."
+    ]
+}
+
+# ---------------- APARTMENTS ----------------
+
+apartments = {
+    "luxor": {
+        "title": "Luxor Apartment",
+        "location": "Downtown Austin",
+        "price": "$300,000",
+        "size": "82 m²",
+        "description": (
+            "Modern apartment in the business center with modern interior design.\n"
+            "Move-in ready, no renovation required.\n\n"
+            "✅ Free high-speed Wi-Fi included\n"
+            "✅ Metro and transport nearby"
+        ),
+        "photos": [
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Luxor_01_iyx5uc",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Luxor_02_lf47j3",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Luxor_03_yglqcw"
+        ]
+    },
+
+    "miracle": {
+        "title": "Miracle Garden Apartment",
+        "location": "Downtown Austin",
+        "price": "$295,000",
+        "size": "85 m²",
+        "description": (
+            "Apartment near central park in a quiet and green neighborhood.\n"
+            "School nearby. Renovation completed one year ago.\n\n"
+            "✅ Free resident parking\n"
+            "✅ Modern and practical layout"
+        ),
+        "photos": [
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Miracle_Garden_01_m9psqg",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Miracle_Garden_02_taju6n",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Miracle_Garden_03_hsuvtn"
+        ]
+    },
+
+    "victory": {
+        "title": "Victory Mansion",
+        "location": "Downtown Austin",
+        "price": "$282,000",
+        "size": "80 m²",
+        "description": (
+            "Historic city center apartment close to attractions.\n"
+            "Requires renovation but has strong potential.\n\n"
+            "✅ Free daily bread and milk delivery\n"
+            "✅ Nearby bakery and farmers market"
+        ),
+        "photos": [
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Victory_Mansion_01_j2utk3",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Victory_Mansion_02_zhb2ia",
+            "https://res.cloudinary.com/dekw8i9b8/image/upload/Victory_Mansion_03_fexeqo"
+        ]
+    }
+}
+
+# ---------------- HELPERS ----------------
+
+def send_text(line_bot_api, reply_token, text):
+    line_bot_api.reply_message(
+        ReplyMessageRequest(
+            reply_token=reply_token,
+            messages=[TextMessage(text=text)]
+        )
+    )
+
+def send_flex(line_bot_api, reply_token, bubble):
+    line_bot_api.reply_message(
+        ReplyMessageRequest(
+            reply_token=reply_token,
+            messages=[FlexMessage(alt_text="menu", contents=bubble)]
+        )
+    )
+
+def send_apartment(line_bot_api, reply_token, user_id, key):
+
+    apartment = apartments[key]
+    user = get_user(user_id)
+
+    mode = user.get("assistant_type", "friendly")
+
+    if mode == "friendly":
+        msg = random.choice(friendly_messages[key])
+    elif mode == "guide":
+        msg = random.choice(guide_messages[key])
+    else:
+        msg = random.choice(expert_messages[key])
+
+    text = (
+        f"🏢 {apartment['title']}\n"
+        f"📍 {apartment['location']}\n"
+        f"💰 {apartment['price']}\n"
+        f"📐 {apartment['size']}\n\n"
+        f"{apartment['description']}\n\n"
+        f"💡 AI Insight:\n{msg}"
+    )
+
+    images = []
+    for url in apartment["photos"]:
+        images.append(ImageMessage(original_content_url=url, preview_image_url=url))
+
+    return text, images
+
+# ---------------- WEBHOOK ----------------
 
 @app.route("/callback", methods=["POST"])
 def callback():
+
     body = request.get_data(as_text=True)
     signature = request.headers.get("X-Line-Signature")
-
-    print("🔥 CALLBACK HIT")
 
     try:
         events = parser.parse(body, signature)
@@ -69,211 +219,271 @@ def callback():
 
             for event in events:
 
-                print("EVENT TYPE:", type(event))
+                user_id = event.source.user_id if hasattr(event.source, "user_id") else None
 
+                # ---------------- START ----------------
                 if isinstance(event, MessageEvent):
-                    handle_message(line_bot_api, event)
 
-                elif isinstance(event, FollowEvent):
-                    handle_follow(line_bot_api, event)
+                    if event.message.text.lower() == "start":
 
+                        user_state[user_id] = {}
+
+                        bubble = {
+                            "type": "bubble",
+                            "body": {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {"type": "text", "text": "🏡 AI Housing Assistant"},
+                                    {"type": "text", "text":
+                                     "I’ll help you find the right apartment in Austin step by step."}
+                                ]
+                            },
+                            "footer": {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "🤖 Friendly", "data": "assistant_friendly"}},
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "📊 Guide", "data": "assistant_guide"}},
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "🧠 Expert", "data": "assistant_expert"}}
+                                ]
+                            }
+                        }
+
+                        send_flex(line_bot_api, event.reply_token, bubble)
+
+                # ---------------- POSTBACK ----------------
                 elif isinstance(event, PostbackEvent):
-                    print("POSTBACK:", event.postback.data)
-                    handle_postback(line_bot_api, event)
+
+                    data = event.postback.data
+                    user = get_user(user_id)
+
+                    if data.startswith("assistant_"):
+                        user["assistant_type"] = data.split("_")[1]
+
+                        bubble = {
+                            "type": "bubble",
+                            "body": {
+                                "type": "box",
+                                "contents": [{"type": "text", "text": "🏙 Step 1: Choose city"}]
+                            },
+                            "footer": {
+                                "type": "box",
+                                "contents": [
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "Austin", "data": "city_austin"}}
+                                ]
+                            }
+                        }
+
+                        send_flex(line_bot_api, event.reply_token, bubble)
+
+                    elif data.startswith("city_"):
+
+                        bubble = {
+                            "type": "bubble",
+                            "body": {"type": "box", "contents": [{"type": "text", "text": "📍 Step 2: Area"}]},
+                            "footer": {
+                                "type": "box",
+                                "contents": [
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "Downtown", "data": "area_downtown"}}
+                                ]
+                            }
+                        }
+
+                        send_flex(line_bot_api, event.reply_token, bubble)
+
+                    elif data.startswith("area_"):
+
+                        bubble = {
+                            "type": "bubble",
+                            "body": {"type": "box", "contents": [{"type": "text", "text": "💳 Payment method"}]},
+                            "footer": {
+                                "type": "box",
+                                "contents": [
+                                    {"type": "button",
+                                     "action": {"type": "postback", "label": "Mortgage", "data": "payment_mortgage"}}
+                                ]
+                            }
+                        }
+
+                        send_flex(line_bot_api, event.reply_token, bubble)
+
+                    elif data.startswith("payment_"):
+
+                        send_text(
+                            line_bot_api,
+                            event.reply_token,
+                            "🏙 I found 3 apartments in Downtown Austin\n"
+                            "💰 Price range: $282k – $300k"
+                        )
+
+                        for key in ["luxor", "miracle", "victory"]:
+                            text, images = send_apartment(line_bot_api, event.reply_token, user_id, key)
+
+                            line_bot_api.push_message(
+                                PushMessageRequest(
+                                    to=user_id,
+                                    messages=[TextMessage(text=text)] + images
+                                )
+                            )
+
+                    elif data == "choose_luxor":
+
+                        send_text(
+                            line_bot_api,
+                            event.reply_token,
+                            "✨ I’d say Luxor is a really great choice if you want a modern,"
+                            " comfortable place to live — it feels very easy and practical.\n\n"
+                            "It’s located in the business center, which makes everyday life much simpler, "
+                            "and free high-speed Wi-Fi is already included."
+                        )
+
+                    elif data == "choose_miracle":
+
+                        send_text(
+                            line_bot_api,
+                            event.reply_token,
+                            "🌿 Miracle Garden is a wonderful option if you prefer a calm and peaceful lifestyle — "
+                            "the whole area feels very relaxed and comfortable for everyday living.\n\n"
+                            "There’s a nearby school, beautiful green surroundings, "
+                            "and free resident parking, which is a really valuable advantage in city life."
+                        )
+
+                    elif data == "choose_victory":
+
+                        send_text(
+                            line_bot_api,
+                            event.reply_token,
+                            "🏛 Victory Mansion is a great option "
+                            "if you're thinking about long-term value and investment potential.\n\n"
+                            "It has a strong character, a friendly and stable community of neighbors, "
+                            "and a warm atmosphere that makes the building feel very welcoming.\n\n"
+                            "One of the unique highlights here is a daily free delivery of bread and milk, "
+                            "which adds a really cozy and special touch to everyday living."
+                        )
+
+                    elif data == "help_choose":
+
+                        send_text(
+                            line_bot_api,
+                            event.reply_token,
+                            "💡 Here’s a simple guide to help you decide:\n\n"
+                            "🏢 Luxor Apartment\n"
+                            "A great option if you want modern comfort and easy everyday living. "
+                            "Located in the business center with free Wi-Fi included, "
+                            "it feels practical and move-in ready.\n\n"
+                            "🌿 Miracle Garden Apartment\n"
+                            "Perfect if you prefer a calm and balanced lifestyle. "
+                            "The area feels peaceful and green, there’s a nearby school, "
+                            "and free parking makes daily city life much easier.\n\n"
+                            "🏛 Victory Mansion\n"
+                            "Best suited for long-term potential and future value. "
+                            "It has a unique historic atmosphere, friendly neighbors, "
+                            "and even free bread & milk delivery for residents."
+                        )
+
+                    elif data == "repeat":
+
+                        send_text(line_bot_api, event.reply_token, "🔄 Showing apartments again...")
+
+                        for key in ["luxor", "miracle", "victory"]:
+                            text, images = send_apartment(line_bot_api, event.reply_token, user_id, key)
+
+                            line_bot_api.push_message(
+                                PushMessageRequest(
+                                    to=user_id,
+                                    messages=[TextMessage(text=text)] + images
+                                )
+                            )
+
+                    elif data == "finish":
+
+                        bubble = {
+                            "type": "bubble",
+                            "body": {
+                                "type": "box",
+                                "contents": [{
+                                    "type": "text",
+                                    "text":
+                                        "✨ Thank you for using AI Housing Assistant!\n\n"
+                                        "🏡 Your selection process is complete.\n\n"
+                                        "If you’ve made a decision, you can take the next step below.\n\n"
+                                        "I’m always here if you need more options or comparisons."
+                                }]
+                            }
+                        }
+
+                        send_flex(line_bot_api, event.reply_token, bubble)
 
     except Exception as e:
-        print("ERROR:", e)
-        print(traceback.format_exc())
+        logging.error(traceback.format_exc())
 
-    return "OK"
+# ---------------- NEXT STEP ----------------
 
-# ---------------- MESSAGE ----------------
+def send_next_step(line_bot_api, reply_token):
 
-def handle_message(line_bot_api, event):
-    text = event.message.text.lower().strip()
-
-    print("EVENT WORKS:", text)
-
-    if text == "start":
-        line_bot_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text="Bot started ✅")]
-            )
-        )
-        return
+    bubble = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "👉 What would you like to do next?"
+                }
+            ]
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "postback",
+                        "label": "🏢 View Apartments Again",
+                        "data": "repeat"
+                    }
+                },
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "postback",
+                        "label": "🤔 Help me choose",
+                        "data": "help_choose"
+                    }
+                },
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "postback",
+                        "label": "🏁 Finish",
+                        "data": "finish"
+                    }
+                }
+            ]
+        }
+    }
 
     line_bot_api.reply_message(
         ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text="Hello from bot 👋")]
+            reply_token=reply_token,
+            messages=[FlexMessage(alt_text="next step", contents=bubble)]
         )
     )
 
-# ---------------- FOLLOW ----------------
+# ---------------- MAIN ----------------
 
-def handle_follow(line_bot_api, event):
-    line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text="👋 Thanks for adding me!")]
-        )
-    )
+def main():
+    app.run(host="0.0.0.0", port=5000)
 
-# ---------------- POSTBACK  ----------------
-
-def handle_postback(line_bot_api, event):
-
-    try:
-        data = event.postback.data
-        user_id = event.source.user_id
-        user = get_user(user_id)
-
-        print("🔥 POSTBACK:", data)
-
-        # -------- ASSISTANT --------
-        if data.startswith("assistant_"):
-
-            user["assistant_type"] = data.split("_")[1]
-
-            flex = {
-                "type": "bubble",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {"type": "text", "text": "🏙 Step 1: Choose city"}
-                    ]
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "postback",
-                                "label": "🏙 Austin",
-                                "data": "city_austin"
-                            }
-                        }
-                    ]
-                }
-            }
-
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[
-                        FlexMessage(
-                            alt_text="City",
-                            contents=FlexContainer.from_dict(flex)
-                        )
-                    ]
-                )
-            )
-            return
-
-        # -------- CITY --------
-        if data.startswith("city_"):
-
-            flex = {
-                "type": "bubble",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {"type": "text", "text": "📍 Step 2: Choose area"}
-                    ]
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "postback",
-                                "label": "📍 Downtown",
-                                "data": "area_downtown"
-                            }
-                        }
-                    ]
-                }
-            }
-
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[
-                        FlexMessage(
-                            alt_text="Area",
-                            contents=FlexContainer.from_dict(flex)
-                        )
-                    ]
-                )
-            )
-            return
-
-        # -------- AREA --------
-        if data.startswith("area_"):
-
-            flex = {
-                "type": "bubble",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {"type": "text", "text": "💳 Step 3: Payment method"}
-                    ]
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "postback",
-                                "label": "🏦 Mortgage",
-                                "data": "payment_mortgage"
-                            }
-                        }
-                    ]
-                }
-            }
-
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[
-                        FlexMessage(
-                            alt_text="Payment",
-                            contents=FlexContainer.from_dict(flex)
-                        )
-                    ]
-                )
-            )
-            return
-
-        # -------- PAYMENT --------
-        if data.startswith("payment_"):
-
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[
-                        TextMessage(
-                            text="🏙 I found 3 apartments in Downtown Austin"
-                        )
-                    ]
-                )
-            )
-            return
-
-    except Exception as e:
-        print("🔥 POSTBACK ERROR:", e)
-        print(traceback.format_exc())
 # ---------------- RUN ----------------
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    main()
