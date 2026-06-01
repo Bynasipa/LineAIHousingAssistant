@@ -376,10 +376,15 @@ def callback():
                             line_bot_api.reply_message(
                                 ReplyMessageRequest(
                                     reply_token=event.reply_token,
-                                    messages=[TextMessage(text="🔄 Showing apartments again...")]
+                                    messages=[TextMessage(
+                                        text="🏡 Which apartment would you like?\n\n"
+                                             "1 - Luxor\n"
+                                             "2 - Miracle\n"
+                                             "3 - Victory\n"
+                                             "4 - Help me choose"
+                                    )]
                                 )
                             )
-                            send_all_apartments(user_id)
                         elif text == "2":
                             user["step"] = "finish"
                             line_bot_api.reply_message(
