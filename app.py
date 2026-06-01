@@ -296,12 +296,13 @@ def callback():
 
             # ---------------- MESSAGE ----------------
             if isinstance(event, MessageEvent):
-
+                logging.info("MESSAGE EVENT received")
                 if hasattr(event.message, "text"):
                     text = event.message.text.lower()
+                    logging.info("Text received: %s", text)
 
-                    if text == "start":
-                        user_state[user_id] = {}
+                    if text.strip().lower() == "start":
+                        logging.info("START command triggered")
 
                         bubble = {
                             "type": "bubble",
