@@ -121,7 +121,6 @@ apartments = {
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975443/Luxor_03_yglqcw.jpg"
         ]
     },
-
     "miracle": {
         "title": "Miracle Garden Apartment",
         "location": "Downtown Austin",
@@ -138,7 +137,6 @@ apartments = {
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Miracle_Garden_03_kug6p9.jpg"
         ]
     },
-
     "victory": {
         "title": "Victory Mansion",
         "location": "Downtown Austin",
@@ -200,77 +198,32 @@ def send_apartment(user_id, key):
         )
     )
 
-    # Apartment photos
+    # Apartment photos — split into batches of 5
     images = [
         ImageMessage(original_content_url=url, preview_image_url=url)
         for url in apartment["photos"]
     ]
-
-    # LINE allows up to 5 messages at a time, so we split into batches
     for i in range(0, len(images), 5):
         line_bot_api.push_message(
             PushMessageRequest(
                 to=user_id,
-                messages=images[i:i + 5]
+                messages=images[i:i+5]
             )
         )
 
 
 # "What's next?" menu after viewing an apartment
 def send_next_step(user_id):
-    bubble = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "👉 What would you like to do next?",
-                    "weight": "bold",
-                    "size": "md"
-                }
-            ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "action": {
-                        "type": "postback",
-                        "label": "🏢 View Apartments Again",
-                        "data": "repeat"
-                    }
-                },
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "action": {
-                        "type": "postback",
-                        "label": "🤔 Help me choose",
-                        "data": "help_choose"
-                    }
-                },
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "action": {
-                        "type": "postback",
-                        "label": "🏁 Finish",
-                        "data": "finish"
-                    }
-                }
-            ]
-        }
-    }
-
     line_bot_api.push_message(
         PushMessageRequest(
             to=user_id,
-            messages=[FlexMessage(alt_text="next step", contents=bubble)]
+            messages=[TextMessage(
+                text="👉 What would you like to do next?\n\n"
+                     "Reply with:\n"
+                     "1 - 🏢 View Apartments Again\n"
+                     "2 - 🤔 Help me choose\n"
+                     "3 - 🏁 Finish"
+            )]
         )
     )
 
@@ -295,15 +248,58 @@ def callback():
             user = get_user(user_id)
 
             # ---------------- MESSAGE ----------------
-            if text.strip().lower() == "start":
-                user_state[user_id] = {}
-                line_bot_api.reply_message(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(
-                            text="🏡 Welcome! Choose your assistant type:\n\nReply with:\n1 - Friendly\n2 - Guide\n3 - Expert")]
-                    )
-                )
+            if isinstance(event, MessageEvent):
+                logging.info("MESSAGE EVENT received")
+
+                if hasattr(event.message, "text"):
+                    text = event.message.text.strip().lower()
+                    logging.info("Text received: %s", text)
+
+                    if text == "start":
+                        logging.info("START command triggered")
+                        user_state[user_id] = {}
+                        line_bot_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(
+                                    text="🏡 Welcome to AI Housing Assistant!\n\n"
+                                         "I will help you find the perfect apartment in Austin.\n\n"
+                                         "Please choose your assistant type:\n\n"
+                                         "Reply with:\n"
+                                         "1 - Friendly\n"
+                                         "2 - Guide\n"
+                                         "3 - Expert"
+                                )]
+                            )
+                        )
+
+                    elif text == "1":
+                        user["assistant_type"] = "friendly"
+                        line_bot_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text="✅ Friendly mode selected!\n\nNow choose your city:\n\n1 - Austin")]
+                            )
+                        )
+
+                    elif text == "2":
+                        user["assistant_type"] = "guide"
+                        line_bot_api.reply_message(
+                            ReplyMessageRequest(
+                                reply_token=event.reply_token,
+                                messages=[TextMessage(text="✅ Guide mode selected!\n\nNow choose your city:\n\n1 - Austin")]
+                            )
+                        )
+
+                    elif text == "3":
+                        if not user.get("assistant_type"):
+                            user["assistant_type"] = "expert"
+                            line_bot_api.reply_message(
+                                ReplyMessageRequest(
+                                    reply_token=event.reply_token,
+                                    messages=[TextMessage(text="✅ Expert mode selected!\n\nNow choose your city:\n\n1 - Austin")]
+                                )
+                            )
 
             # ---------------- POSTBACK ----------------
             elif isinstance(event, PostbackEvent):
@@ -313,95 +309,34 @@ def callback():
                 # -------- ASSISTANT --------
                 if data.startswith("assistant_"):
                     user["assistant_type"] = data.split("_")[1]
-
-                    bubble = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "text", "text": "🏙 Step 1: Choose city"}
-                            ]
-                        },
-                        "footer": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Austin", "data": "city_austin"}}
-                            ]
-                        }
-                    }
-
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="step1", contents=bubble)]
+                            messages=[TextMessage(text="🏙 Step 1: Choose city\n\nReply: Austin")]
                         )
                     )
 
                 # -------- CITY --------
                 elif data.startswith("city_"):
-
-                    bubble = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "text", "text": "📍 Step 2: Choose area"}
-                            ]
-                        },
-                        "footer": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Downtown", "data": "area_downtown"}}
-                            ]
-                        }
-                    }
-
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="step2", contents=bubble)]
+                            messages=[TextMessage(text="📍 Step 2: Choose area\n\nReply: Downtown")]
                         )
                     )
 
                 # -------- AREA --------
                 elif data.startswith("area_"):
-
-                    bubble = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "text", "text": "💳 Step 3: Payment method"}
-                            ]
-                        },
-                        "footer": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Mortgage", "data": "payment_mortgage"}}
-                            ]
-                        }
-                    }
-
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="step3", contents=bubble)]
+                            messages=[TextMessage(text="💳 Step 3: Payment method\n\nReply: Mortgage")]
                         )
                     )
 
                 # -------- PAYMENT --------
                 elif data.startswith("payment_"):
-
-                    # 1) Один reply на токен
+                    # 1) Single reply per token
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
@@ -416,35 +351,17 @@ def callback():
                         send_apartment(user_id, key)
 
                     # 3) Apartment selection menu (push)
-                    choose_bubble = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "text", "text": "🏡 Which apartment would you like?"}
-                            ]
-                        },
-                        "footer": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Luxor", "data": "choose_luxor"}},
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Miracle", "data": "choose_miracle"}},
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Victory", "data": "choose_victory"}},
-                                {"type": "button",
-                                 "action": {"type": "postback", "label": "Help me choose", "data": "help_choose"}}
-                            ]
-                        }
-                    }
-
                     line_bot_api.push_message(
                         PushMessageRequest(
                             to=user_id,
-                            messages=[FlexMessage(alt_text="choose", contents=choose_bubble)]
+                            messages=[TextMessage(
+                                text="🏡 Which apartment would you like?\n\n"
+                                     "Reply with:\n"
+                                     "1 - Luxor\n"
+                                     "2 - Miracle\n"
+                                     "3 - Victory\n"
+                                     "4 - Help me choose"
+                            )]
                         )
                     )
 
@@ -488,65 +405,40 @@ def callback():
                             messages=[TextMessage(text="🔄 Showing apartments again...")]
                         )
                     )
-
                     for key in ["luxor", "miracle", "victory"]:
                         send_apartment(user_id, key)
-
                     send_next_step(user_id)
 
                 # -------- FINISH --------
                 elif data == "finish":
-
-                    bubble = {
-                        "type": "bubble",
-                        "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "text", "text": "✨ Thank you for using AI Housing Assistant!", "wrap": True},
-                                {"type": "text", "text": "🏡 Your selection process is complete.", "wrap": True},
-                                {"type": "text", "text": "I'm always here if you need more options.", "wrap": True}
-                            ]
-                        },
-                        "footer": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {"type": "button", "style": "primary", "action": {"type": "postback", "label":
-                                    "📞 Contact Agent", "data": "contact_agent"}},
-                                {"type": "button", "style": "primary", "action": {"type": "postback", "label":
-                                    "🏦 Mortgage", "data": "mortgage_help"}},
-                                {"type": "button", "style": "primary", "action": {"type": "postback", "label":
-                                    "🔄 Compare Again", "data": "repeat"}}
-                            ]
-                        }
-                    }
-
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
-                            messages=[FlexMessage(alt_text="finish", contents=bubble)]
+                            messages=[TextMessage(
+                                text="✨ Thank you for using AI Housing Assistant!\n\n"
+                                     "🏡 Your selection process is complete.\n\n"
+                                     "Reply with:\n"
+                                     "1 - 📞 Contact Agent\n"
+                                     "2 - 🏦 Mortgage\n"
+                                     "3 - 🔄 Compare Again"
+                            )]
                         )
                     )
 
                 # -------- ADDED HANDLERS for finish buttons --------
                 elif data == "contact_agent":
-                    send_text(event.reply_token,
-                              "📞 You can contact our agent.")
+                    send_text(event.reply_token, "📞 You can contact our agent.")
 
                 elif data == "mortgage_help":
-                    send_text(event.reply_token,
-                              "🏦 You can contact a mortgage specialist.")
+                    send_text(event.reply_token, "🏦 You can contact a mortgage specialist.")
 
-                # (Optional: if something unknown comes in – we ignore it, but better to reply)
                 else:
-                    # Reply just in case, so LINE doesn't time out
                     send_text(event.reply_token, "I'm sorry, I didn't understand that. Please use the buttons.")
 
         return "OK", 200
 
     except Exception as e:
-        logging.error(traceback.format_exc())
+        logging.error("FULL ERROR: %s", traceback.format_exc())
         return "error", 500
 
 
