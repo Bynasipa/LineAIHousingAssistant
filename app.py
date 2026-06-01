@@ -306,14 +306,17 @@ def callback():
 
                         bubble = {
                             "type": "bubble",
+                            "size": "mega",
                             "body": {
                                 "type": "box",
                                 "layout": "vertical",
+                                "spacing": "md",
                                 "contents": [
-                                    {"type": "text", "text": "🏡 AI Housing Assistant", "weight": "bold", "size": "lg"},
+                                    {"type": "text", "text": "🏡 AI Housing Assistant", "weight": "bold", "size": "lg",
+                                     "wrap": True},
                                     {"type": "text",
                                      "text": "I will help you find the perfect apartment in Austin step by step.",
-                                     "wrap": True}
+                                     "wrap": True, "size": "sm", "color": "#666666"}
                                 ]
                             },
                             "footer": {
