@@ -437,7 +437,8 @@ def callback():
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
                             messages=[TextMessage(
-                                text="🏙 I found 3 apartments in Downtown Austin\n💰 Price range: $282k – $300k"
+                                text="🏙 I found 3 apartments in Downtown Austin\n
+                                      💰 Price range: $282k – $300k"
                             )]
                         )
                     )
