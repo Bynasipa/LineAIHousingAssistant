@@ -13,7 +13,8 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage,
     FlexMessage,
-    ImageMessage
+    ImageMessage,
+    FlexContainer
 )
 
 from linebot.v3.webhook import WebhookParser
@@ -46,7 +47,7 @@ def get_user(user_id):
     return user_state[user_id]
 
 
-# ---------------- MESSAGES ----------------
+# ---------------- AI INSIGHT MESSAGES ----------------
 
 friendly_messages = {
     "luxor": [
@@ -110,11 +111,9 @@ apartments = {
         "location": "Downtown Austin",
         "price": "$300,000",
         "size": "82 m²",
-        "description":
-            "Modern apartment in the business center with modern interior design.\n"
-            "Move-in ready, no renovation required.\n\n"
-            "✅ Free high-speed Wi-Fi included\n"
-            "✅ Metro and transport nearby",
+        "description": "Modern apartment in the business center with modern interior design. Move-in ready, no renovation required.",
+        "features": ["Free high-speed Wi-Fi included", "Metro and transport nearby"],
+        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975318/Luxor_01_iyx5uc.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975318/Luxor_01_iyx5uc.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Luxor_02_x4upom.jpg",
@@ -122,15 +121,13 @@ apartments = {
         ]
     },
     "miracle": {
-        "title": "Miracle Garden Apartment",
+        "title": "Miracle Garden",
         "location": "Downtown Austin",
         "price": "$295,000",
         "size": "85 m²",
-        "description":
-            "Apartment near central park in a quiet and green neighborhood.\n"
-            "School nearby. Renovation completed one year ago.\n\n"
-            "✅ Free resident parking\n"
-            "✅ Modern and practical layout",
+        "description": "Apartment near central park in a quiet and green neighborhood. School nearby. Renovation completed one year ago.",
+        "features": ["Free resident parking", "Modern and practical layout"],
+        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Miracle_Garden_01_ee1iuk.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Miracle_Garden_01_ee1iuk.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Miracle_Garden_02_qxghmq.jpg",
@@ -142,11 +139,9 @@ apartments = {
         "location": "Downtown Austin",
         "price": "$282,000",
         "size": "80 m²",
-        "description":
-            "Historic city center apartment close to attractions.\n"
-            "Requires renovation but has strong potential.\n\n"
-            "✅ Free daily bread and milk delivery\n"
-            "✅ Nearby bakery and farmers market",
+        "description": "Historic city center apartment close to attractions. Requires renovation but has strong potential.",
+        "features": ["Free daily bread and milk delivery", "Nearby bakery and farmers market"],
+        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_01_mx3sme.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_01_mx3sme.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_02_at00es.jpg",
@@ -154,6 +149,163 @@ apartments = {
         ]
     }
 }
+
+
+# ---------------- FLEX CARD BUILDER ----------------
+
+def build_apartment_card(key, mode):
+    apt = apartments[key]
+
+    if mode == "friendly":
+        insight = random.choice(friendly_messages[key])
+    elif mode == "guide":
+        insight = random.choice(guide_messages[key])
+    else:
+        insight = random.choice(expert_messages[key])
+
+    features_text = "  ✅ " + "\n  ✅ ".join(apt["features"])
+
+    card = {
+        "type": "bubble",
+        "size": "kilo",
+        "hero": {
+            "type": "image",
+            "url": apt["cover"],
+            "size": "full",
+            "aspectRatio": "20:13",
+            "aspectMode": "cover",
+            "action": {
+                "type": "postback",
+                "label": "view_photos",
+                "data": f"action=photos&apt={key}"
+            }
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "paddingAll": "16px",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": apt["title"],
+                    "weight": "bold",
+                    "size": "lg",
+                    "color": "#1a1a2e",
+                    "wrap": True
+                },
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "spacing": "sm",
+                    "margin": "xs",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": f"📍 {apt['location']}",
+                            "size": "xs",
+                            "color": "#888888",
+                            "flex": 1,
+                            "wrap": True
+                        },
+                        {
+                            "type": "text",
+                            "text": apt["size"],
+                            "size": "xs",
+                            "color": "#888888",
+                            "align": "end"
+                        }
+                    ]
+                },
+                {
+                    "type": "text",
+                    "text": apt["price"],
+                    "weight": "bold",
+                    "size": "xl",
+                    "color": "#e63946",
+                    "margin": "sm"
+                },
+                {
+                    "type": "separator",
+                    "margin": "sm",
+                    "color": "#eeeeee"
+                },
+                {
+                    "type": "text",
+                    "text": apt["description"],
+                    "size": "xs",
+                    "color": "#444444",
+                    "wrap": True,
+                    "margin": "sm"
+                },
+                {
+                    "type": "text",
+                    "text": features_text,
+                    "size": "xs",
+                    "color": "#2d6a4f",
+                    "wrap": True,
+                    "margin": "sm"
+                },
+                {
+                    "type": "separator",
+                    "margin": "sm",
+                    "color": "#eeeeee"
+                },
+                {
+                    "type": "text",
+                    "text": f"💡 {insight}",
+                    "size": "xs",
+                    "color": "#555577",
+                    "wrap": True,
+                    "margin": "sm",
+                    "style": "italic"
+                }
+            ]
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "paddingAll": "12px",
+            "contents": [
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "postback",
+                        "label": "📸 View All Photos",
+                        "data": f"action=photos&apt={key}"
+                    },
+                    "style": "secondary",
+                    "height": "sm",
+                    "color": "#f0f0f0"
+                },
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "postback",
+                        "label": "✅ Choose This Apartment",
+                        "data": f"action=choose&apt={key}"
+                    },
+                    "style": "primary",
+                    "height": "sm",
+                    "color": "#e63946"
+                }
+            ]
+        }
+    }
+    return card
+
+
+def build_carousel(user_id):
+    user = get_user(user_id)
+    mode = user.get("assistant_type", "friendly")
+
+    bubbles = [build_apartment_card(key, mode) for key in ["luxor", "miracle", "victory"]]
+
+    return {
+        "type": "carousel",
+        "contents": bubbles
+    }
 
 
 # ---------------- HELPERS ----------------
@@ -167,27 +319,7 @@ def send_text(reply_token, text):
     )
 
 
-def send_apartment(user_id, key):
-    apartment = apartments[key]
-    user = get_user(user_id)
-    mode = user.get("assistant_type", "friendly")
-
-    if mode == "friendly":
-        msg = random.choice(friendly_messages[key])
-    elif mode == "guide":
-        msg = random.choice(guide_messages[key])
-    else:
-        msg = random.choice(expert_messages[key])
-
-    text = (
-        f"🏢 {apartment['title']}\n"
-        f"📍 {apartment['location']}\n"
-        f"💰 {apartment['price']}\n"
-        f"📐 {apartment['size']}\n\n"
-        f"{apartment['description']}\n\n"
-        f"💡 AI Insight:\n{msg}"
-    )
-
+def push_text(user_id, text):
     line_bot_api.push_message(
         PushMessageRequest(
             to=user_id,
@@ -195,58 +327,70 @@ def send_apartment(user_id, key):
         )
     )
 
+
+def send_photos(user_id, key):
+    apt = apartments[key]
+    push_text(user_id, f"📸 {apt['title']} — All Photos")
     images = [
         ImageMessage(original_content_url=url, preview_image_url=url)
-        for url in apartment["photos"]
+        for url in apt["photos"]
     ]
     for i in range(0, len(images), 5):
         line_bot_api.push_message(
             PushMessageRequest(
                 to=user_id,
-                messages=images[i:i+5]
+                messages=images[i:i + 5]
             )
         )
 
 
-def send_all_apartments(user_id):
-    line_bot_api.push_message(
-        PushMessageRequest(
-            to=user_id,
-            messages=[TextMessage(
-                text="🏙 I found 3 apartments in Downtown Austin\n💰 Price range: $282k – $300k"
-            )]
+def send_carousel(reply_token, user_id):
+    carousel = build_carousel(user_id)
+    line_bot_api.reply_message(
+        ReplyMessageRequest(
+            reply_token=reply_token,
+            messages=[
+                TextMessage(
+                    text="🏙 I found 3 apartments in Downtown Austin\n💰 Price range: $282k – $300k\n\n👇 Swipe to browse:"
+                ),
+                FlexMessage(
+                    alt_text="3 Apartments in Downtown Austin",
+                    contents=FlexContainer.from_dict(carousel)
+                )
+            ]
         )
     )
-    for key in ["luxor", "miracle", "victory"]:
-        send_apartment(user_id, key)
+
+
+def push_carousel(user_id):
+    carousel = build_carousel(user_id)
     line_bot_api.push_message(
         PushMessageRequest(
             to=user_id,
-            messages=[TextMessage(
-                text="🏡 Which apartment would you like?\n\n"
-                     "1 - Luxor\n"
-                     "2 - Miracle\n"
-                     "3 - Victory\n"
-                     "4 - Help me choose"
-            )]
+            messages=[
+                TextMessage(
+                    text="🏙 Here are the apartments again:\n\n👇 Swipe to browse:"
+                ),
+                FlexMessage(
+                    alt_text="3 Apartments in Downtown Austin",
+                    contents=FlexContainer.from_dict(carousel)
+                )
+            ]
         )
     )
 
 
 def send_next_step(user_id):
-    line_bot_api.push_message(
-        PushMessageRequest(
-            to=user_id,
-            messages=[TextMessage(
-                text="👉 What would you like to do next?\n\n"
-                     "1 - 🏢 View Apartments Again\n"
-                     "2 - 🏁 Finish"
-            )]
-        )
+    push_text(
+        user_id,
+        "👉 What would you like to do next?\n\n"
+        "1 - 🏢 View Apartments Again\n"
+        "2 - 🏁 Finish"
     )
 
 
 # ---------------- WEBHOOK ----------------
+
 @app.route("/callback", methods=["POST"])
 def callback():
     try:
@@ -265,8 +409,49 @@ def callback():
 
             user = get_user(user_id)
 
-            # ---------------- MESSAGE ----------------
-            if isinstance(event, MessageEvent):
+            # ---------------- POSTBACK EVENT ----------------
+            if isinstance(event, PostbackEvent):
+                data = event.postback.data
+                params = dict(p.split("=") for p in data.split("&") if "=" in p)
+                action = params.get("action")
+                apt_key = params.get("apt")
+
+                logging.info("POSTBACK: action=%s apt=%s", action, apt_key)
+
+                if action == "photos" and apt_key in apartments:
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=f"📸 Loading photos for {apartments[apt_key]['title']}..."
+                            )]
+                        )
+                    )
+                    send_photos(user_id, apt_key)
+
+                elif action == "choose" and apt_key in apartments:
+                    apt = apartments[apt_key]
+                    user["step"] = "next_step"
+                    user["chosen"] = apt_key
+
+                    summaries = {
+                        "luxor": "✨ Great choice for modern comfortable living.\n🏙 Located in the business center with free Wi-Fi.",
+                        "miracle": "🌿 Calm and peaceful lifestyle.\n🌳 Nearby school, green surroundings, free parking.",
+                        "victory": "🏛 Great for long-term investment.\n🎁 Bonus: free bread & milk delivery every day."
+                    }
+
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=f"🏠 You selected: {apt['title']}\n\n{summaries[apt_key]}"
+                            )]
+                        )
+                    )
+                    send_next_step(user_id)
+
+            # ---------------- MESSAGE EVENT ----------------
+            elif isinstance(event, MessageEvent):
                 logging.info("MESSAGE EVENT received")
 
                 if hasattr(event.message, "text"):
@@ -284,9 +469,9 @@ def callback():
                                     text="🏡 Welcome to AI Housing Assistant!\n\n"
                                          "I will help you find the perfect apartment in Austin.\n\n"
                                          "Please choose your assistant type:\n\n"
-                                         "1 - Friendly\n"
-                                         "2 - Guide\n"
-                                         "3 - Expert"
+                                         "1 - 😊 Friendly\n"
+                                         "2 - 🧭 Guide\n"
+                                         "3 - 🧠 Expert"
                                 )]
                             )
                         )
@@ -294,13 +479,14 @@ def callback():
                     # ---- CHOOSE ASSISTANT ----
                     elif step == "choose_assistant" and text in ["1", "2", "3"]:
                         modes = {"1": "friendly", "2": "guide", "3": "expert"}
+                        mode_labels = {"1": "😊 Friendly", "2": "🧭 Guide", "3": "🧠 Expert"}
                         user["assistant_type"] = modes[text]
                         user["step"] = "choose_city"
                         line_bot_api.reply_message(
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
                                 messages=[TextMessage(
-                                    text=f"✅ {modes[text].capitalize()} mode selected!\n\n"
+                                    text=f"✅ {mode_labels[text]} mode selected!\n\n"
                                          "🏙 Step 1: Choose city\n\n"
                                          "1 - Austin"
                                 )]
@@ -342,9 +528,9 @@ def callback():
                                 messages=[TextMessage(text="🔍 Searching for apartments...")]
                             )
                         )
-                        send_all_apartments(user_id)
+                        push_carousel(user_id)
 
-                    # ---- CHOOSE APARTMENT ----
+                    # ---- CHOOSE APARTMENT (text fallback) ----
                     elif step == "choose_apartment" and text in ["1", "2", "3", "4"]:
                         user["step"] = "next_step"
                         if text == "1":
@@ -425,3 +611,4 @@ def callback():
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
