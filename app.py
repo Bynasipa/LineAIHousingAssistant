@@ -295,50 +295,15 @@ def callback():
             user = get_user(user_id)
 
             # ---------------- MESSAGE ----------------
-            if isinstance(event, MessageEvent):
-                logging.info("MESSAGE EVENT received")
-                if hasattr(event.message, "text"):
-                    text = event.message.text.lower()
-                    logging.info("Text received: %s", text)
-
-                    if text.strip().lower() == "start":
-                        logging.info("START command triggered")
-
-                        bubble = {
-                            "type": "bubble",
-                            "size": "mega",
-                            "body": {
-                                "type": "box",
-                                "layout": "vertical",
-                                "spacing": "md",
-                                "contents": [
-                                    {"type": "text", "text": "🏡 AI Housing Assistant", "weight": "bold", "size": "lg",
-                                     "wrap": True},
-                                    {"type": "text",
-                                     "text": "I will help you find the perfect apartment in Austin step by step.",
-                                     "wrap": True, "size": "sm", "color": "#666666"}
-                                ]
-                            },
-                            "footer": {
-                                "type": "box",
-                                "layout": "vertical",
-                                "contents": [
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "Friendly", "data": "assistant_friendly"}},
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "Guide", "data": "assistant_guide"}},
-                                    {"type": "button",
-                                     "action": {"type": "postback", "label": "Expert", "data": "assistant_expert"}}
-                                ]
-                            }
-                        }
-
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[FlexMessage(alt_text="start", contents=bubble)]
-                            )
-                        )
+            if text.strip().lower() == "start":
+                user_state[user_id] = {}
+                line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(
+                            text="🏡 Welcome! Choose your assistant type:\n\nReply with:\n1 - Friendly\n2 - Guide\n3 - Expert")]
+                    )
+                )
 
             # ---------------- POSTBACK ----------------
             elif isinstance(event, PostbackEvent):
