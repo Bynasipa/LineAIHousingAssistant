@@ -1,7 +1,9 @@
 import os
+import time
 import random
 import logging
 import traceback
+import threading
 
 from flask import Flask, request
 
@@ -13,8 +15,10 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage,
     FlexMessage,
-    ImageMessage,
-    FlexContainer
+    FlexContainer,
+    QuickReply,
+    QuickReplyItem,
+    MessageAction
 )
 
 from linebot.v3.webhook import WebhookParser
@@ -103,6 +107,32 @@ expert_messages = {
     ]
 }
 
+# ---------------- ADVICE MESSAGES ----------------
+
+friendly_advice = (
+    "😊 My personal advice for you:\n\n"
+    "🏡 If you love modern comfort and city life — go with Luxor.\n"
+    "🌿 If you prefer peace, nature and family vibes — Miracle Garden is perfect.\n"
+    "🏛 If you want something unique with future potential — Victory Mansion is your hidden gem.\n\n"
+    "What feels right to you?"
+)
+
+guide_advice = (
+    "🧭 Here is my honest guide:\n\n"
+    "🏢 Luxor — best for move-in ready buyers who value location.\n"
+    "🌿 Miracle — best for families who want space, parking and green area.\n"
+    "🏛 Victory — best for buyers ready for renovation and long-term gains.\n\n"
+    "Which fits your situation best?"
+)
+
+expert_advice = (
+    "🧠 Investment analysis:\n\n"
+    "📊 Luxor — low risk, stable appreciation, strong CBD liquidity.\n"
+    "📊 Miracle — medium risk, green-zone demand growth, solid rental yield.\n"
+    "📊 Victory — high risk / high reward. Renovation arbitrage in historic district.\n\n"
+    "Best ROI potential: Victory > Miracle > Luxor."
+)
+
 # ---------------- APARTMENTS ----------------
 
 apartments = {
@@ -113,7 +143,6 @@ apartments = {
         "size": "82 m²",
         "description": "Modern apartment in the business center with modern interior design. Move-in ready, no renovation required.",
         "features": ["Free high-speed Wi-Fi included", "Metro and transport nearby"],
-        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975318/Luxor_01_iyx5uc.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975318/Luxor_01_iyx5uc.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Luxor_02_x4upom.jpg",
@@ -127,7 +156,6 @@ apartments = {
         "size": "85 m²",
         "description": "Apartment near central park in a quiet and green neighborhood. School nearby. Renovation completed one year ago.",
         "features": ["Free resident parking", "Modern and practical layout"],
-        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Miracle_Garden_01_ee1iuk.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Miracle_Garden_01_ee1iuk.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Miracle_Garden_02_qxghmq.jpg",
@@ -141,7 +169,6 @@ apartments = {
         "size": "80 m²",
         "description": "Historic city center apartment close to attractions. Requires renovation but has strong potential.",
         "features": ["Free daily bread and milk delivery", "Nearby bakery and farmers market"],
-        "cover": "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_01_mx3sme.jpg",
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_01_mx3sme.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_02_at00es.jpg",
@@ -165,20 +192,23 @@ def build_apartment_card(key, mode):
 
     features_text = "  ✅ " + "\n  ✅ ".join(apt["features"])
 
+    # Build image carousel hero with all 3 photos (swipeable)
+    hero_contents = []
+    for photo_url in apt["photos"]:
+        hero_contents.append({
+            "type": "image",
+            "url": photo_url,
+            "size": "full",
+            "aspectRatio": "20:13",
+            "aspectMode": "cover"
+        })
+
     card = {
         "type": "bubble",
         "size": "kilo",
         "hero": {
-            "type": "image",
-            "url": apt["cover"],
-            "size": "full",
-            "aspectRatio": "20:13",
-            "aspectMode": "cover",
-            "action": {
-                "type": "postback",
-                "label": "view_photos",
-                "data": f"action=photos&apt={key}"
-            }
+            "type": "carousel",
+            "contents": hero_contents
         },
         "body": {
             "type": "box",
@@ -261,36 +291,6 @@ def build_apartment_card(key, mode):
                     "style": "italic"
                 }
             ]
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "paddingAll": "12px",
-            "contents": [
-                {
-                    "type": "button",
-                    "action": {
-                        "type": "postback",
-                        "label": "📸 View All Photos",
-                        "data": f"action=photos&apt={key}"
-                    },
-                    "style": "secondary",
-                    "height": "sm",
-                    "color": "#f0f0f0"
-                },
-                {
-                    "type": "button",
-                    "action": {
-                        "type": "postback",
-                        "label": "✅ Choose This Apartment",
-                        "data": f"action=choose&apt={key}"
-                    },
-                    "style": "primary",
-                    "height": "sm",
-                    "color": "#e63946"
-                }
-            ]
         }
     }
     return card
@@ -299,13 +299,86 @@ def build_apartment_card(key, mode):
 def build_carousel(user_id):
     user = get_user(user_id)
     mode = user.get("assistant_type", "friendly")
-
     bubbles = [build_apartment_card(key, mode) for key in ["luxor", "miracle", "victory"]]
-
     return {
         "type": "carousel",
         "contents": bubbles
     }
+
+
+def build_single_card(key, mode):
+    bubbles = [build_apartment_card(key, mode)]
+    return {
+        "type": "carousel",
+        "contents": bubbles
+    }
+
+
+# ---------------- QUICK REPLY BUILDERS ----------------
+
+def after_carousel_quick_reply():
+    """Quick Reply shown after carousel: Get Advice / View One Again / I've Made My Choice"""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=MessageAction(label="💬 Get Advice", text="get advice")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🔁 View One Again", text="view one again")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="✅ I've Made My Choice", text="i've made my choice")
+            )
+        ]
+    )
+
+
+def view_one_quick_reply():
+    """Quick Reply to pick which apartment to view again"""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=MessageAction(label="1 - Luxor", text="1")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="2 - Miracle", text="2")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="3 - Victory", text="3")
+            )
+        ]
+    )
+
+
+def final_quick_reply():
+    """Quick Reply for final step: Contact Agent or Mortgage"""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=MessageAction(label="📞 Contact Agent", text="1")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🏦 Mortgage Info", text="2")
+            )
+        ]
+    )
+
+
+def choose_final_quick_reply():
+    """Quick Reply to pick which apartment they chose"""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=MessageAction(label="🏢 Luxor", text="choose luxor")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🌿 Miracle", text="choose miracle")
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🏛 Victory", text="choose victory")
+            )
+        ]
+    )
 
 
 # ---------------- HELPERS ----------------
@@ -328,51 +401,24 @@ def push_text(user_id, text):
     )
 
 
-def send_photos(user_id, key):
-    apt = apartments[key]
-    push_text(user_id, f"📸 {apt['title']} — All Photos")
-    images = [
-        ImageMessage(original_content_url=url, preview_image_url=url)
-        for url in apt["photos"]
-    ]
-    for i in range(0, len(images), 5):
-        line_bot_api.push_message(
-            PushMessageRequest(
-                to=user_id,
-                messages=images[i:i + 5]
-            )
-        )
-
-
-def send_carousel(reply_token, user_id):
-    carousel = build_carousel(user_id)
-    line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=reply_token,
-            messages=[
-                TextMessage(
-                    text="🏙 I found 3 apartments in Downtown Austin\n💰 Price range: $282k – $300k\n\n👇 Swipe to browse:"
-                ),
-                FlexMessage(
-                    alt_text="3 Apartments in Downtown Austin",
-                    contents=FlexContainer.from_dict(carousel)
-                )
-            ]
+def push_text_with_qr(user_id, text, quick_reply):
+    """Push a text message with Quick Reply buttons"""
+    line_bot_api.push_message(
+        PushMessageRequest(
+            to=user_id,
+            messages=[TextMessage(text=text, quick_reply=quick_reply)]
         )
     )
 
 
-def push_carousel(user_id):
+def push_carousel_msg(user_id):
     carousel = build_carousel(user_id)
     line_bot_api.push_message(
         PushMessageRequest(
             to=user_id,
             messages=[
-                TextMessage(
-                    text="🏙 Here are the apartments again:\n\n👇 Swipe to browse:"
-                ),
                 FlexMessage(
-                    alt_text="3 Apartments in Downtown Austin",
+                    alt_text="3 Apartments in Downtown Austin — swipe to browse",
                     contents=FlexContainer.from_dict(carousel)
                 )
             ]
@@ -380,12 +426,39 @@ def push_carousel(user_id):
     )
 
 
-def send_next_step(user_id):
-    push_text(
+def push_single_card(user_id, key):
+    user = get_user(user_id)
+    mode = user.get("assistant_type", "friendly")
+    card = build_single_card(key, mode)
+    line_bot_api.push_message(
+        PushMessageRequest(
+            to=user_id,
+            messages=[
+                FlexMessage(
+                    alt_text=f"{apartments[key]['title']} — details",
+                    contents=FlexContainer.from_dict(card)
+                )
+            ]
+        )
+    )
+
+
+def delayed_carousel_sequence(user_id):
+    """
+    Runs in background thread:
+    1. sleep 5s  → push "I found 3 apartments..."
+    2. sleep 3s  → push carousel
+    3. sleep 1s  → push Quick Reply prompt
+    """
+    time.sleep(5)
+    push_text(user_id, "🏠 I found 3 apartments that match your request!\n📍 Downtown Austin  |  💰 $282k – $300k")
+    time.sleep(3)
+    push_carousel_msg(user_id)
+    time.sleep(1)
+    push_text_with_qr(
         user_id,
-        "👉 What would you like to do next?\n\n"
-        "1 - 🏢 View Apartments Again\n"
-        "2 - 🏁 Finish"
+        "👆 Swipe through the apartments above.\n\nWhat would you like to do next?",
+        after_carousel_quick_reply()
     )
 
 
@@ -409,197 +482,219 @@ def callback():
 
             user = get_user(user_id)
 
-            # ---------------- POSTBACK EVENT ----------------
-            if isinstance(event, PostbackEvent):
-                data = event.postback.data
-                params = dict(p.split("=") for p in data.split("&") if "=" in p)
-                action = params.get("action")
-                apt_key = params.get("apt")
+            # ---------------- MESSAGE EVENT ----------------
+            if isinstance(event, MessageEvent):
+                logging.info("MESSAGE EVENT received")
 
-                logging.info("POSTBACK: action=%s apt=%s", action, apt_key)
+                if not hasattr(event.message, "text"):
+                    continue
 
-                if action == "photos" and apt_key in apartments:
+                text = event.message.text.strip().lower()
+                step = user.get("step", "")
+                logging.info("Text: [%s]  Step: [%s]", text, step)
+
+                # ---- START ----
+                if text == "start":
+                    user_state[user_id] = {"step": "choose_assistant"}
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
                             messages=[TextMessage(
-                                text=f"📸 Loading photos for {apartments[apt_key]['title']}..."
+                                text=(
+                                    "🏡 Welcome to AI Housing Assistant!\n\n"
+                                    "I will help you find the perfect apartment in Austin.\n\n"
+                                    "Please choose your assistant type:\n\n"
+                                    "1 - 😊 Friendly\n"
+                                    "2 - 🧭 Guide\n"
+                                    "3 - 🧠 Expert"
+                                )
                             )]
                         )
                     )
-                    send_photos(user_id, apt_key)
 
-                elif action == "choose" and apt_key in apartments:
-                    apt = apartments[apt_key]
-                    user["step"] = "next_step"
-                    user["chosen"] = apt_key
+                # ---- CHOOSE ASSISTANT ----
+                elif step == "choose_assistant" and text in ["1", "2", "3"]:
+                    modes = {"1": "friendly", "2": "guide", "3": "expert"}
+                    mode_labels = {"1": "😊 Friendly", "2": "🧭 Guide", "3": "🧠 Expert"}
+                    user["assistant_type"] = modes[text]
+                    user["step"] = "choose_city"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=(
+                                    f"✅ {mode_labels[text]} mode selected!\n\n"
+                                    "🏙 Step 1: Choose city\n\n"
+                                    "1 - Austin"
+                                )
+                            )]
+                        )
+                    )
+
+                # ---- CHOOSE CITY ----
+                elif step == "choose_city" and text == "1":
+                    user["step"] = "choose_area"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="📍 Step 2: Choose area\n\n1 - Downtown"
+                            )]
+                        )
+                    )
+
+                # ---- CHOOSE AREA ----
+                elif step == "choose_area" and text == "1":
+                    user["step"] = "choose_payment"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="💳 Step 3: Payment method\n\n1 - Mortgage"
+                            )]
+                        )
+                    )
+
+                # ---- CHOOSE PAYMENT ----
+                elif step == "choose_payment" and text == "1":
+                    user["step"] = "choose_price"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="💰 Step 4: Choose price range\n\n1 - $280k – $300k"
+                            )]
+                        )
+                    )
+
+                # ---- CHOOSE PRICE ----
+                elif step == "choose_price" and text == "1":
+                    user["step"] = "browsing"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="🔍 Searching for apartments..."
+                            )]
+                        )
+                    )
+                    # Launch delayed sequence in background thread
+                    t = threading.Thread(
+                        target=delayed_carousel_sequence,
+                        args=(user_id,),
+                        daemon=True
+                    )
+                    t.start()
+
+                # ---- AFTER CAROUSEL: GET ADVICE ----
+                elif step == "browsing" and text == "get advice":
+                    mode = user.get("assistant_type", "friendly")
+                    if mode == "friendly":
+                        advice = friendly_advice
+                    elif mode == "guide":
+                        advice = guide_advice
+                    else:
+                        advice = expert_advice
+
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=advice,
+                                quick_reply=after_carousel_quick_reply()
+                            )]
+                        )
+                    )
+
+                # ---- AFTER CAROUSEL: VIEW ONE AGAIN ----
+                elif step == "browsing" and text == "view one again":
+                    user["step"] = "view_one"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="Which apartment would you like to see again?",
+                                quick_reply=view_one_quick_reply()
+                            )]
+                        )
+                    )
+
+                # ---- VIEW ONE: PICK APARTMENT ----
+                elif step == "view_one" and text in ["1", "2", "3"]:
+                    keys = {"1": "luxor", "2": "miracle", "3": "victory"}
+                    key = keys[text]
+                    user["step"] = "browsing"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text=f"📋 Here is {apartments[key]['title']} again:"
+                            )]
+                        )
+                    )
+                    push_single_card(user_id, key)
+                    time.sleep(1)
+                    push_text_with_qr(
+                        user_id,
+                        "What would you like to do next?",
+                        after_carousel_quick_reply()
+                    )
+
+                # ---- AFTER CAROUSEL: I'VE MADE MY CHOICE ----
+                elif step == "browsing" and text == "i've made my choice":
+                    user["step"] = "final_choice"
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(
+                                text="🏠 Which apartment are you choosing?",
+                                quick_reply=choose_final_quick_reply()
+                            )]
+                        )
+                    )
+
+                # ---- FINAL CHOICE: PICK APARTMENT ----
+                elif step == "final_choice" and text in ["choose luxor", "choose miracle", "choose victory"]:
+                    key = text.split()[1]
+                    user["chosen"] = key
+                    user["step"] = "finish"
 
                     summaries = {
-                        "luxor": "✨ Great choice for modern comfortable living.\n🏙 Located in the business center with free Wi-Fi.",
-                        "miracle": "🌿 Calm and peaceful lifestyle.\n🌳 Nearby school, green surroundings, free parking.",
-                        "victory": "🏛 Great for long-term investment.\n🎁 Bonus: free bread & milk delivery every day."
+                        "luxor": "✨ Excellent choice! Modern living in the heart of Austin.\n🏙 Free Wi-Fi, metro nearby, move-in ready.",
+                        "miracle": "🌿 Great pick! Peaceful and green neighborhood.\n🌳 School nearby, free parking, renovated.",
+                        "victory": "🏛 Bold choice! Historic gem with strong potential.\n🎁 Free bread & milk delivery every day."
                     }
 
                     line_bot_api.reply_message(
                         ReplyMessageRequest(
                             reply_token=event.reply_token,
                             messages=[TextMessage(
-                                text=f"🏠 You selected: {apt['title']}\n\n{summaries[apt_key]}"
+                                text=(
+                                    f"🎉 You selected: {apartments[key]['title']}\n\n"
+                                    f"{summaries[key]}\n\n"
+                                    "What would you like to do next?"
+                                ),
+                                quick_reply=final_quick_reply()
                             )]
                         )
                     )
-                    send_next_step(user_id)
 
-            # ---------------- MESSAGE EVENT ----------------
-            elif isinstance(event, MessageEvent):
-                logging.info("MESSAGE EVENT received")
+                # ---- FINISH: CONTACT AGENT ----
+                elif step == "finish" and text == "1":
+                    send_text(event.reply_token, "📞 You can contact our agent.")
 
-                if hasattr(event.message, "text"):
-                    text = event.message.text.strip().lower()
-                    step = user.get("step", "")
-                    logging.info("Text: [%s] Step: [%s]", text, step)
+                # ---- FINISH: MORTGAGE ----
+                elif step == "finish" and text == "2":
+                    send_text(event.reply_token, "🏦 You can contact a mortgage specialist.")
 
-                    # ---- START ----
-                    if text == "start":
-                        user_state[user_id] = {"step": "choose_assistant"}
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(
-                                    text="🏡 Welcome to AI Housing Assistant!\n\n"
-                                         "I will help you find the perfect apartment in Austin.\n\n"
-                                         "Please choose your assistant type:\n\n"
-                                         "1 - 😊 Friendly\n"
-                                         "2 - 🧭 Guide\n"
-                                         "3 - 🧠 Expert"
-                                )]
-                            )
+                # ---- UNKNOWN ----
+                else:
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="Please type Start to begin.")]
                         )
-
-                    # ---- CHOOSE ASSISTANT ----
-                    elif step == "choose_assistant" and text in ["1", "2", "3"]:
-                        modes = {"1": "friendly", "2": "guide", "3": "expert"}
-                        mode_labels = {"1": "😊 Friendly", "2": "🧭 Guide", "3": "🧠 Expert"}
-                        user["assistant_type"] = modes[text]
-                        user["step"] = "choose_city"
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(
-                                    text=f"✅ {mode_labels[text]} mode selected!\n\n"
-                                         "🏙 Step 1: Choose city\n\n"
-                                         "1 - Austin"
-                                )]
-                            )
-                        )
-
-                    # ---- CHOOSE CITY ----
-                    elif step == "choose_city" and text == "1":
-                        user["step"] = "choose_area"
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(
-                                    text="📍 Step 2: Choose area\n\n"
-                                         "1 - Downtown"
-                                )]
-                            )
-                        )
-
-                    # ---- CHOOSE AREA ----
-                    elif step == "choose_area" and text == "1":
-                        user["step"] = "choose_payment"
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(
-                                    text="💳 Step 3: Payment method\n\n"
-                                         "1 - Mortgage"
-                                )]
-                            )
-                        )
-
-                    # ---- CHOOSE PAYMENT ----
-                    elif step == "choose_payment" and text == "1":
-                        user["step"] = "choose_apartment"
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(text="🔍 Searching for apartments...")]
-                            )
-                        )
-                        push_carousel(user_id)
-
-                    # ---- CHOOSE APARTMENT (text fallback) ----
-                    elif step == "choose_apartment" and text in ["1", "2", "3", "4"]:
-                        user["step"] = "next_step"
-                        if text == "1":
-                            send_text(event.reply_token,
-                                      "🏢 Luxor Apartment\n\n"
-                                      "✨ Great choice for modern comfortable living.\n"
-                                      "🏙 Located in the business center with free Wi-Fi.")
-                        elif text == "2":
-                            send_text(event.reply_token,
-                                      "🌿 Miracle Garden\n\n"
-                                      "Calm and peaceful lifestyle.\n"
-                                      "🌳 Nearby school, green surroundings, free parking.")
-                        elif text == "3":
-                            send_text(event.reply_token,
-                                      "🏛 Victory Mansion\n\n"
-                                      "Great for long-term investment.\n"
-                                      "Bonus: free bread & milk delivery.")
-                        elif text == "4":
-                            send_text(event.reply_token,
-                                      "✨ Luxor = modern\n"
-                                      "🌿 Miracle = calm\n"
-                                      "🏛 Victory = investment")
-                        send_next_step(user_id)
-
-                    # ---- NEXT STEP ----
-                    elif step == "next_step" and text in ["1", "2"]:
-                        if text == "1":
-                            user["step"] = "choose_apartment"
-                            line_bot_api.reply_message(
-                                ReplyMessageRequest(
-                                    reply_token=event.reply_token,
-                                    messages=[TextMessage(
-                                        text="🏡 Which apartment would you like?\n\n"
-                                             "1 - Luxor\n"
-                                             "2 - Miracle\n"
-                                             "3 - Victory\n"
-                                             "4 - Help me choose"
-                                    )]
-                                )
-                            )
-                        elif text == "2":
-                            user["step"] = "finish"
-                            line_bot_api.reply_message(
-                                ReplyMessageRequest(
-                                    reply_token=event.reply_token,
-                                    messages=[TextMessage(
-                                        text="✨ Thank you for using AI Housing Assistant!\n\n"
-                                             "🏡 Your selection process is complete.\n\n"
-                                             "1 - 📞 Contact Agent\n"
-                                             "2 - 🏦 Mortgage"
-                                    )]
-                                )
-                            )
-
-                    # ---- FINISH OPTIONS ----
-                    elif step == "finish" and text in ["1", "2"]:
-                        if text == "1":
-                            send_text(event.reply_token, "📞 You can contact our agent.")
-                        elif text == "2":
-                            send_text(event.reply_token, "🏦 You can contact a mortgage specialist.")
-
-                    # ---- UNKNOWN ----
-                    else:
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(text="Please type Start to begin.")]
-                            )
-                        )
+                    )
 
         return "OK", 200
 
