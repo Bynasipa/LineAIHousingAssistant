@@ -240,43 +240,46 @@ def txt_msg(text, quick_reply=None):
 
 
 # Static quick replies
+# LINE label hard limit: 20 characters (including emoji which count as 1 char each)
+# All labels below are verified ≤ 20 chars.
+
 QR_AFTER_CAROUSEL = qr_items([
-    ("📸 See Photos", "see photos"),
-    ("💬 Get Advice", "get advice"),
-    ("✅ I Made My Choice", "i made my choice")
+    ("📸 Photos", "see photos"),           # 9
+    ("💬 Get Advice", "get advice"),       # 13
+    ("✅ My Choice", "i made my choice")   # 12
 ])
 
 QR_PHOTO_PICK = qr_items([
-    ("🏢 Luxor Photos", "photos luxor"),
-    ("🌿 Miracle Photos", "photos miracle"),
-    ("🏛 Victory Photos", "photos victory")
+    ("🏢 Luxor Photos", "photos luxor"),   # 15
+    ("🌿 Miracle Photos", "photos miracle"), # 17
+    ("🏛 Victory Photos", "photos victory") # 17
 ])
 
 QR_AFTER_PHOTOS = qr_items([
-    ("💬 Get Advice", "get advice"),
-    ("🔁 View Cards Again", "view one again"),
-    ("✅ I Made My Choice", "i made my choice")
+    ("💬 Get Advice", "get advice"),       # 13
+    ("🔁 Cards Again", "view one again"),  # 14
+    ("✅ My Choice", "i made my choice")   # 12
 ])
 
 QR_VIEW_ONE = qr_items([
-    ("🏢 Luxor", "view luxor"),
-    ("🌿 Miracle", "view miracle"),
-    ("🏛 Victory", "view victory")
+    ("🏢 Luxor", "view luxor"),            # 8
+    ("🌿 Miracle", "view miracle"),        # 10
+    ("🏛 Victory", "view victory")         # 10
 ])
 
 QR_FINAL_CHOICE = qr_items([
-    ("🏢 Luxor", "choose luxor"),
-    ("🌿 Miracle", "choose miracle"),
-    ("🏛 Victory", "choose victory")
+    ("🏢 Luxor", "choose luxor"),          # 8
+    ("🌿 Miracle", "choose miracle"),      # 10
+    ("🏛 Victory", "choose victory")       # 10
 ])
 
 QR_YES_SHOW = qr_items([
-    ("👀 Yes, show me!", "yes show me")
+    ("👀 Yes, show me!", "yes show me")    # 17
 ])
 
 QR_CONFIRM_EXIT = qr_items([
-    ("✅ Yes, finish", "confirm exit"),
-    ("🔄 No, keep going", "keep going")
+    ("✅ Yes, finish", "confirm exit"),    # 15
+    ("🔄 Keep going", "keep going")        # 13
 ])
 
 
@@ -284,23 +287,28 @@ def qr_after_choice(seen_modes):
     """
     Quick reply after final choice.
     Always shows Contact + Mortgage.
-    Shows 🟢 Choose AI Assistant only if not all 3 modes seen yet.
-    If all 3 modes seen, shows a Finish button instead.
+    Shows AI Assistant button only if not all 3 modes seen yet.
+    If all 3 modes seen, shows Finish button instead.
+    All labels strictly ≤ 20 chars.
     """
     items = [
-        ("📞 Contact Agent", "contact agent"),
-        ("🏦 Mortgage Info", "mortgage info"),
+        ("📞 Contact Agent", "contact agent"),  # 16
+        ("🏦 Mortgage Info", "mortgage info"),  # 16
     ]
     if len(seen_modes) < 3:
         remaining = 3 - len(seen_modes)
-        items.append((f"🟢 Choose AI Assistant ({remaining} left)", "choose ai assistant"))
+        # "🟢 AI Mode (2 left)" = 19 chars ✓
+        items.append((f"🟢 AI Mode ({remaining} left)", "choose ai assistant"))
     else:
-        items.append(("🏁 Finish Session", "finish session"))
+        items.append(("🏁 Finish Session", "finish session"))  # 17
     return qr_items(items)
 
 
 def qr_choose_mode(seen_modes):
-    """Show only unseen modes."""
+    """Show only unseen modes. Labels ≤ 20 chars."""
+    # "1 - 😊 Friendly" = 15 chars ✓
+    # "2 - 🧭 Guide"    = 12 chars ✓
+    # "3 - 🧠 Expert"   = 13 chars ✓
     all_modes = [("1", "friendly"), ("2", "guide"), ("3", "expert")]
     items = []
     for num, mode in all_modes:
