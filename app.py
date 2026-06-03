@@ -2,8 +2,9 @@ import os
 import random
 import logging
 import traceback
+import requests
 
-from flask import Flask, request
+from flask import Flask, request as flask_request
 
 from linebot.v3.messaging import (
     Configuration,
@@ -12,8 +13,6 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     PushMessageRequest,
     TextMessage,
-    FlexMessage,
-    FlexContainer,
     QuickReply,
     QuickReplyItem,
     MessageAction
@@ -207,9 +206,7 @@ def build_info_bubble(key, mode):
         insight = random.choice(guide_messages[key])
     else:
         insight = random.choice(expert_messages[key])
-
-    features_text = "\n".join(f for f in apt["features"])
-
+    features_text = "\n".join(apt["features"])
     return {
         "type": "bubble",
         "size": "kilo",
@@ -226,79 +223,17 @@ def build_info_bubble(key, mode):
             "spacing": "sm",
             "paddingAll": "16px",
             "contents": [
-                {
-                    "type": "text",
-                    "text": apt["title"],
-                    "weight": "bold",
-                    "size": "lg",
-                    "color": "#1a1a2e",
-                    "wrap": True
-                },
-                {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "margin": "xs",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": "📍 " + apt["location"],
-                            "size": "xs",
-                            "color": "#888888",
-                            "flex": 1,
-                            "wrap": True
-                        },
-                        {
-                            "type": "text",
-                            "text": "📐 " + apt["size"],
-                            "size": "xs",
-                            "color": "#888888",
-                            "align": "end"
-                        }
-                    ]
-                },
-                {
-                    "type": "text",
-                    "text": "💰 " + apt["price"],
-                    "weight": "bold",
-                    "size": "xl",
-                    "color": "#e63946",
-                    "margin": "sm"
-                },
-                {
-                    "type": "separator",
-                    "margin": "sm",
-                    "color": "#eeeeee"
-                },
-                {
-                    "type": "text",
-                    "text": apt["description"],
-                    "size": "xs",
-                    "color": "#444444",
-                    "wrap": True,
-                    "margin": "sm"
-                },
-                {
-                    "type": "text",
-                    "text": features_text,
-                    "size": "xs",
-                    "color": "#2d6a4f",
-                    "wrap": True,
-                    "margin": "sm"
-                },
-                {
-                    "type": "separator",
-                    "margin": "sm",
-                    "color": "#eeeeee"
-                },
-                {
-                    "type": "text",
-                    "text": "💡 " + insight,
-                    "size": "xs",
-                    "color": "#555577",
-                    "wrap": True,
-                    "margin": "sm",
-                    "style": "italic"
-                }
+                {"type": "text", "text": apt["title"], "weight": "bold", "size": "lg", "color": "#1a1a2e", "wrap": True},
+                {"type": "box", "layout": "horizontal", "margin": "xs", "contents": [
+                    {"type": "text", "text": "📍 " + apt["location"], "size": "xs", "color": "#888888", "flex": 1, "wrap": True},
+                    {"type": "text", "text": "📐 " + apt["size"], "size": "xs", "color": "#888888", "align": "end"}
+                ]},
+                {"type": "text", "text": "💰 " + apt["price"], "weight": "bold", "size": "xl", "color": "#e63946", "margin": "sm"},
+                {"type": "separator", "margin": "sm", "color": "#eeeeee"},
+                {"type": "text", "text": apt["description"], "size": "xs", "color": "#444444", "wrap": True, "margin": "sm"},
+                {"type": "text", "text": features_text, "size": "xs", "color": "#2d6a4f", "wrap": True, "margin": "sm"},
+                {"type": "separator", "margin": "sm", "color": "#eeeeee"},
+                {"type": "text", "text": "💡 " + insight, "size": "xs", "color": "#555577", "wrap": True, "margin": "sm", "style": "italic"}
             ]
         }
     }
@@ -320,14 +255,7 @@ def build_photo_bubble(photo_url, label):
             "layout": "vertical",
             "paddingAll": "8px",
             "contents": [
-                {
-                    "type": "text",
-                    "text": "📸 " + label,
-                    "size": "xxs",
-                    "color": "#888888",
-                    "align": "center",
-                    "wrap": True
-                }
+                {"type": "text", "text": "📸 " + label, "size": "xxs", "color": "#888888", "align": "center", "wrap": True}
             ]
         }
     }
@@ -350,7 +278,65 @@ def build_carousel_for_keys(keys, mode):
     return {"type": "carousel", "contents": bubbles}
 
 
-# ---------------- QUICK REPLIES ----------------
+# ---------------- LINE PUSH DIRECT ----------------
+
+def line_push(user_id, messages_payload):
+    resp = requests.post(
+        "https://api.line.me/v2/bot/message/push",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + LINE_CHANNEL_ACCESS_TOKEN
+        },
+        json={"to": user_id, "messages": messages_payload},
+        timeout=10
+    )
+    logging.info("line_push status=%s body=%s", resp.status_code, resp.text[:300])
+    return resp.status_code == 200
+
+
+def send_carousel(user_id, keys):
+    mode = get_user(user_id).get("assistant_type", "friendly")
+    carousel = build_carousel_for_keys(keys, mode)
+    logging.info("Sending carousel with %d bubbles", len(carousel["contents"]))
+    ok = line_push(user_id, [
+        {
+            "type": "flex",
+            "altText": "🏠 Apartments in Downtown Austin",
+            "contents": carousel
+        },
+        {
+            "type": "text",
+            "text": "👆 Swipe through the cards to browse.\n\nWhat would you like to do next?",
+            "quickReply": {
+                "items": [
+                    {"type": "action", "action": {"type": "message", "label": "💬 Get Advice", "text": "get advice"}},
+                    {"type": "action", "action": {"type": "message", "label": "🔁 View One Again", "text": "view one again"}},
+                    {"type": "action", "action": {"type": "message", "label": "✅ I Made My Choice", "text": "i made my choice"}}
+                ]
+            }
+        }
+    ])
+    if not ok:
+        line_push(user_id, [{"type": "text", "text": "❌ Could not load cards. Please type Start to try again."}])
+
+
+# ---------------- REPLY / PUSH HELPERS ----------------
+
+def reply_msg(reply_token, messages):
+    line_bot_api.reply_message(
+        ReplyMessageRequest(reply_token=reply_token, messages=messages)
+    )
+
+
+def push_msg(user_id, messages):
+    line_bot_api.push_message(
+        PushMessageRequest(to=user_id, messages=messages)
+    )
+
+
+def txt(text, qr=None):
+    return TextMessage(text=text, quick_reply=qr)
+
 
 def qr_after_carousel():
     return QuickReply(items=[
@@ -389,72 +375,28 @@ def qr_yes_show():
     ])
 
 
-# ---------------- SEND HELPERS ----------------
-
-def reply_msg(reply_token, messages):
-    line_bot_api.reply_message(
-        ReplyMessageRequest(reply_token=reply_token, messages=messages)
-    )
-
-
-def push_msg(user_id, messages):
-    line_bot_api.push_message(
-        PushMessageRequest(to=user_id, messages=messages)
-    )
-
-
-def txt(text, qr=None):
-    return TextMessage(text=text, quick_reply=qr)
-
-
-def send_carousel(user_id, keys):
-    mode = get_user(user_id).get("assistant_type", "friendly")
-    carousel = build_carousel_for_keys(keys, mode)
-    logging.info("Sending carousel with %d bubbles", len(carousel["contents"]))
-    try:
-        flex = FlexMessage(
-            alt_text="🏠 Apartments in Downtown Austin",
-            contents=FlexContainer.from_dict(carousel)
-        )
-        push_msg(user_id, [
-            flex,
-            txt(
-                "👆 Swipe through the cards to browse.\n\nWhat would you like to do next?",
-                qr_after_carousel()
-            )
-        ])
-        logging.info("Carousel sent OK")
-    except Exception:
-        logging.error("Carousel send failed: %s", traceback.format_exc())
-        push_msg(user_id, [txt("❌ Could not load cards. Please type Start to try again.")])
-
-
 # ---------------- WEBHOOK ----------------
 
 @app.route("/callback", methods=["POST"])
 def callback():
     try:
-        body = request.get_data(as_text=True)
-        signature = request.headers.get("X-Line-Signature")
+        body = flask_request.get_data(as_text=True)
+        signature = flask_request.headers.get("X-Line-Signature")
         events = parser.parse(body, signature)
 
         for event in events:
             user_id = getattr(event.source, "user_id", None)
             if not user_id:
                 continue
-
             user = get_user(user_id)
-
             if not isinstance(event, MessageEvent):
                 continue
-            if not hasattr(event.message, "text"):
+            if not hasattr(event.message, 'text'):
                 continue
-
             text = event.message.text.strip().lower()
             step = user.get("step", "")
             logging.info("TEXT=[%s]  STEP=[%s]", text, step)
 
-            # ---- START ----
             if text == "start":
                 user_state[user_id] = {"step": "choose_assistant"}
                 reply_msg(event.reply_token, [txt(
@@ -466,7 +408,6 @@ def callback():
                     "3 - 🧠 Expert"
                 )])
 
-            # ---- CHOOSE ASSISTANT ----
             elif step == "choose_assistant" and text in ["1", "2", "3"]:
                 modes = {"1": "friendly", "2": "guide", "3": "expert"}
                 labels = {"1": "😊 Friendly", "2": "🧭 Guide", "3": "🧠 Expert"}
@@ -478,7 +419,6 @@ def callback():
                     "1 - Austin"
                 )])
 
-            # ---- STEP 1: CITY ----
             elif step == "choose_city" and text == "1":
                 user["step"] = "choose_area"
                 reply_msg(event.reply_token, [txt(
@@ -486,7 +426,6 @@ def callback():
                     "1 - Downtown"
                 )])
 
-            # ---- STEP 2: AREA ----
             elif step == "choose_area" and text == "1":
                 user["step"] = "choose_payment"
                 reply_msg(event.reply_token, [txt(
@@ -494,7 +433,6 @@ def callback():
                     "1 - Mortgage"
                 )])
 
-            # ---- STEP 3: PAYMENT ----
             elif step == "choose_payment" and text == "1":
                 user["step"] = "choose_price"
                 reply_msg(event.reply_token, [txt(
@@ -502,7 +440,6 @@ def callback():
                     "1 - $280k – $300k"
                 )])
 
-            # ---- STEP 4: PRICE ----
             elif step == "choose_price" and text == "1":
                 user["step"] = "confirm_show"
                 reply_msg(event.reply_token, [txt(
@@ -515,7 +452,6 @@ def callback():
                     qr_yes_show()
                 )])
 
-            # ---- CONFIRM SHOW ----
             elif step == "confirm_show" and text == "yes show me":
                 user["step"] = "browsing"
                 reply_msg(event.reply_token, [txt(
@@ -523,7 +459,6 @@ def callback():
                 )])
                 send_carousel(user_id, APT_KEYS)
 
-            # ---- BROWSING: GET ADVICE ----
             elif step == "browsing" and text == "get advice":
                 mode = user.get("assistant_type", "friendly")
                 reply_msg(event.reply_token, [txt(
@@ -531,7 +466,6 @@ def callback():
                     qr_after_carousel()
                 )])
 
-            # ---- BROWSING: VIEW ONE AGAIN ----
             elif step == "browsing" and text == "view one again":
                 user["step"] = "view_one"
                 reply_msg(event.reply_token, [txt(
@@ -539,7 +473,6 @@ def callback():
                     qr_view_one()
                 )])
 
-            # ---- VIEW ONE: PICK ----
             elif step == "view_one" and text in ["view luxor", "view miracle", "view victory"]:
                 key = text.split()[1]
                 user["step"] = "browsing"
@@ -548,7 +481,6 @@ def callback():
                 )])
                 send_carousel(user_id, [key])
 
-            # ---- BROWSING: I MADE MY CHOICE ----
             elif step == "browsing" and text == "i made my choice":
                 user["step"] = "final_choice"
                 reply_msg(event.reply_token, [txt(
@@ -556,27 +488,14 @@ def callback():
                     qr_final_choice()
                 )])
 
-            # ---- FINAL CHOICE ----
             elif step == "final_choice" and text in ["choose luxor", "choose miracle", "choose victory"]:
                 key = text.split()[1]
                 user["chosen"] = key
                 user["step"] = "finish"
                 summaries = {
-                    "luxor": (
-                        "✨ Excellent choice!\n"
-                        "Modern living in the heart of Austin.\n"
-                        "📡 Free Wi-Fi, metro nearby, move-in ready."
-                    ),
-                    "miracle": (
-                        "🌿 Great pick!\n"
-                        "Peaceful and green neighborhood.\n"
-                        "🌳 School nearby, free parking, renovated."
-                    ),
-                    "victory": (
-                        "🏛 Bold choice!\n"
-                        "Historic gem with strong potential.\n"
-                        "🍞 Free bread and milk delivery every day."
-                    )
+                    "luxor": "✨ Excellent choice!\nModern living in the heart of Austin.\n📡 Free Wi-Fi, metro nearby, move-in ready.",
+                    "miracle": "🌿 Great pick!\nPeaceful and green neighborhood.\n🌳 School nearby, free parking, renovated.",
+                    "victory": "🏛 Bold choice!\nHistoric gem with strong potential.\n🍞 Free bread and milk delivery every day."
                 }
                 reply_msg(event.reply_token, [txt(
                     "🎉 You selected: " + apartments[key]["title"] + "\n\n"
@@ -585,38 +504,30 @@ def callback():
                     qr_finish()
                 )])
 
-            # ---- FINISH: CONTACT AGENT ----
             elif step == "finish" and text == "contact agent":
                 reply_msg(event.reply_token, [txt(
                     "📞 You can contact our agent.\n"
                     "We will get back to you shortly!"
                 )])
 
-            # ---- FINISH: MORTGAGE ----
             elif step == "finish" and text == "mortgage info":
                 reply_msg(event.reply_token, [txt(
                     "🏦 You can contact a mortgage specialist.\n"
                     "We will help you find the best rates!"
                 )])
 
-            # ---- UNKNOWN ----
             else:
                 reply_msg(event.reply_token, [txt(
                     "🏡 Please type Start to begin."
                 )])
 
-        return "OK", 200
+        return 'OK', 200
 
     except Exception as e:
         logging.error("FULL ERROR: %s", traceback.format_exc())
-        return "error", 500
+        return 'error', 500
 
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
-
-
-
-
-
