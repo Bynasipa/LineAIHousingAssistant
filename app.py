@@ -13,7 +13,6 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage,
     FlexMessage,
-    FlexContainer,
     QuickReply,
     QuickReplyItem,
     MessageAction
@@ -52,55 +51,55 @@ def get_user(user_id):
 
 friendly_messages = {
     "luxor": [
-        "A very cozy and modern apartment in the city center.",
-        "Perfect for a comfortable and stress-free lifestyle.",
-        "Great option if you want convenience and modern living."
+        "✨ A very cozy and modern apartment in the city center.",
+        "🏡 Perfect for a comfortable and stress-free lifestyle.",
+        "💙 Great option if you want convenience and modern living."
     ],
     "miracle": [
-        "Peaceful atmosphere with a balanced lifestyle.",
-        "Excellent for families and calm living.",
-        "Green surroundings make this place very relaxing."
+        "🌿 Peaceful atmosphere with a balanced lifestyle.",
+        "🏡 Excellent for families and calm living.",
+        "✨ Green surroundings make this place very relaxing."
     ],
     "victory": [
-        "Unique apartment with historic charm.",
-        "Full of personality and strong future potential.",
-        "Great opportunity for creative renovation ideas."
+        "🏛 Unique apartment with historic charm.",
+        "✨ Full of personality and strong future potential.",
+        "💡 Great opportunity for creative renovation ideas."
     ]
 }
 
 guide_messages = {
     "luxor": [
-        "Excellent downtown location with stable property value.",
-        "Strong infrastructure and transport accessibility.",
-        "Good option for buyers seeking convenience."
+        "📊 Excellent downtown location with stable property value.",
+        "📍 Strong infrastructure and transport accessibility.",
+        "💰 Good option for buyers seeking convenience."
     ],
     "miracle": [
-        "Family-oriented neighborhood with green zones.",
-        "Parking and recent renovation increase livability.",
-        "Strong balance between comfort and price."
+        "📊 Family-oriented neighborhood with green zones.",
+        "📍 Parking and recent renovation increase livability.",
+        "💰 Strong balance between comfort and price."
     ],
     "victory": [
-        "Strong investment potential after renovation.",
-        "Historic district increases long-term value.",
-        "Attractive option for long-term investors."
+        "📊 Strong investment potential after renovation.",
+        "📍 Historic district increases long-term value.",
+        "💰 Attractive option for long-term investors."
     ]
 }
 
 expert_messages = {
     "luxor": [
-        "Low-risk premium real estate asset.",
-        "Strong liquidity in central business district.",
-        "Stable long-term appreciation potential."
+        "🧠 Low-risk premium real estate asset.",
+        "📊 Strong liquidity in central business district.",
+        "🏗 Stable long-term appreciation potential."
     ],
     "miracle": [
-        "Balanced growth profile with medium risk.",
-        "Green-zone demand improves market stability.",
-        "Suitable for lifestyle-focused portfolios."
+        "🧠 Balanced growth profile with medium risk.",
+        "📊 Green-zone demand improves market stability.",
+        "🏗 Suitable for lifestyle-focused portfolios."
     ],
     "victory": [
-        "High-risk, high-reward investment opportunity.",
-        "Renovation arbitrage potential is significant.",
-        "Scarcity in historic areas supports future growth."
+        "🧠 High-risk, high-reward investment opportunity.",
+        "📊 Renovation arbitrage potential is significant.",
+        "🏗 Scarcity in historic areas supports future growth."
     ]
 }
 
@@ -137,13 +136,16 @@ apartments = {
         "title": "Luxor Apartment",
         "location": "Downtown Austin",
         "price": "$300,000",
-        "size": "82 m2",
+        "size": "82 m²",
         "description": (
             "Modern apartment in the business center "
             "with stylish interior design. "
             "Move-in ready, no renovation required."
         ),
-        "features": ["Free high-speed Wi-Fi", "Metro and transport nearby"],
+        "features": [
+            "✅ Free high-speed Wi-Fi included",
+            "✅ Metro and transport nearby"
+        ],
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975318/Luxor_01_iyx5uc.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Luxor_02_x4upom.jpg",
@@ -154,13 +156,16 @@ apartments = {
         "title": "Miracle Garden",
         "location": "Downtown Austin",
         "price": "$295,000",
-        "size": "85 m2",
+        "size": "85 m²",
         "description": (
             "Quiet and green neighborhood near central park. "
             "School nearby. "
             "Renovation completed one year ago."
         ),
-        "features": ["Free resident parking", "Modern and practical layout"],
+        "features": [
+            "✅ Free resident parking",
+            "✅ Modern and practical layout"
+        ],
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Miracle_Garden_01_ee1iuk.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975444/Miracle_Garden_02_qxghmq.jpg",
@@ -171,12 +176,15 @@ apartments = {
         "title": "Victory Mansion",
         "location": "Downtown Austin",
         "price": "$282,000",
-        "size": "80 m2",
+        "size": "80 m²",
         "description": (
             "Historic city center apartment close to attractions. "
             "Requires renovation but has strong potential."
         ),
-        "features": ["Free daily bread and milk delivery", "Nearby bakery and farmers market"],
+        "features": [
+            "✅ Free daily bread and milk delivery",
+            "✅ Nearby bakery and farmers market"
+        ],
         "photos": [
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_01_mx3sme.jpg",
             "https://res.cloudinary.com/dekw8i9b8/image/upload/v1779975445/Victory_Mansion_02_at00es.jpg",
@@ -187,36 +195,29 @@ apartments = {
 
 APT_KEYS = ["luxor", "miracle", "victory"]
 
+
 # ---------------- CARD BUILDER ----------------
 
-def build_card(key, mode):
+def build_info_bubble(key, mode):
     apt = apartments[key]
-    insight = random.choice(
-        friendly_messages[key] if mode == "friendly"
-        else guide_messages[key] if mode == "guide"
-        else expert_messages[key]
-    )
+    if mode == "friendly":
+        insight = random.choice(friendly_messages[key])
+    elif mode == "guide":
+        insight = random.choice(guide_messages[key])
+    else:
+        insight = random.choice(expert_messages[key])
 
-    hero_images = [
-        {
-            "type": "image",
-            "url": url,
-            "size": "full",
-            "aspectRatio": "20:13",
-            "aspectMode": "cover"
-        }
-        for url in apt["photos"]
-    ]
-
-    features_lines = "\n".join("  checkmark " + f for f in apt["features"])
-    features_lines = features_lines.replace("checkmark", "✅")
+    features_text = "\n".join(f for f in apt["features"])
 
     return {
         "type": "bubble",
         "size": "kilo",
         "hero": {
-            "type": "carousel",
-            "contents": hero_images
+            "type": "image",
+            "url": apt["photos"][0],
+            "size": "full",
+            "aspectRatio": "20:13",
+            "aspectMode": "cover"
         },
         "body": {
             "type": "box",
@@ -247,7 +248,7 @@ def build_card(key, mode):
                         },
                         {
                             "type": "text",
-                            "text": apt["size"],
+                            "text": "📐 " + apt["size"],
                             "size": "xs",
                             "color": "#888888",
                             "align": "end"
@@ -256,7 +257,7 @@ def build_card(key, mode):
                 },
                 {
                     "type": "text",
-                    "text": apt["price"],
+                    "text": "💰 " + apt["price"],
                     "weight": "bold",
                     "size": "xl",
                     "color": "#e63946",
@@ -277,7 +278,7 @@ def build_card(key, mode):
                 },
                 {
                     "type": "text",
-                    "text": features_lines,
+                    "text": features_text,
                     "size": "xs",
                     "color": "#2d6a4f",
                     "wrap": True,
@@ -302,19 +303,50 @@ def build_card(key, mode):
     }
 
 
-def build_carousel_all(user_id):
-    mode = get_user(user_id).get("assistant_type", "friendly")
+def build_photo_bubble(photo_url, label):
     return {
-        "type": "carousel",
-        "contents": [build_card(k, mode) for k in APT_KEYS]
+        "type": "bubble",
+        "size": "micro",
+        "hero": {
+            "type": "image",
+            "url": photo_url,
+            "size": "full",
+            "aspectRatio": "4:3",
+            "aspectMode": "cover"
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "paddingAll": "8px",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "📸 " + label,
+                    "size": "xxs",
+                    "color": "#888888",
+                    "align": "center",
+                    "wrap": True
+                }
+            ]
+        }
     }
 
 
-def build_carousel_one(key, mode):
-    return {
-        "type": "carousel",
-        "contents": [build_card(key, mode)]
-    }
+def build_apartment_bubbles(key, mode):
+    apt = apartments[key]
+    bubbles = [build_info_bubble(key, mode)]
+    if len(apt["photos"]) > 1:
+        bubbles.append(build_photo_bubble(apt["photos"][1], "Photo 2"))
+    if len(apt["photos"]) > 2:
+        bubbles.append(build_photo_bubble(apt["photos"][2], "Photo 3"))
+    return bubbles
+
+
+def build_carousel_for_keys(keys, mode):
+    bubbles = []
+    for key in keys:
+        bubbles.extend(build_apartment_bubbles(key, mode))
+    return {"type": "carousel", "contents": bubbles}
 
 
 # ---------------- QUICK REPLIES ----------------
@@ -323,7 +355,7 @@ def qr_after_carousel():
     return QuickReply(items=[
         QuickReplyItem(action=MessageAction(label="💬 Get Advice", text="get advice")),
         QuickReplyItem(action=MessageAction(label="🔁 View One Again", text="view one again")),
-        QuickReplyItem(action=MessageAction(label="I Made My Choice", text="i made my choice"))
+        QuickReplyItem(action=MessageAction(label="✅ I Made My Choice", text="i made my choice"))
     ])
 
 
@@ -352,7 +384,7 @@ def qr_finish():
 
 def qr_yes_show():
     return QuickReply(items=[
-        QuickReplyItem(action=MessageAction(label="Yes, show me!", text="yes show me"))
+        QuickReplyItem(action=MessageAction(label="👀 Yes, show me!", text="yes show me"))
     ])
 
 
@@ -374,22 +406,26 @@ def txt(text, qr=None):
     return TextMessage(text=text, quick_reply=qr)
 
 
-def flex_msg(flex_dict, alt_text):
-    return FlexMessage(
-        alt_text=alt_text,
-        contents=FlexContainer.from_dict(flex_dict)
-    )
-
-
-def send_carousel_with_qr(user_id):
-    carousel = build_carousel_all(user_id)
-    push_msg(user_id, [
-        flex_msg(carousel, "3 Apartments in Downtown Austin — swipe to browse"),
-        txt(
-            "👆 Swipe through the cards to browse all apartments.\n\nWhat would you like to do next?",
-            qr_after_carousel()
+def send_carousel(user_id, keys):
+    mode = get_user(user_id).get("assistant_type", "friendly")
+    carousel = build_carousel_for_keys(keys, mode)
+    logging.info("Sending carousel with %d bubbles", len(carousel["contents"]))
+    try:
+        flex = FlexMessage(
+            alt_text="🏠 Apartments in Downtown Austin",
+            contents=carousel
         )
-    ])
+        push_msg(user_id, [
+            flex,
+            txt(
+                "👆 Swipe through the cards to browse.\n\nWhat would you like to do next?",
+                qr_after_carousel()
+            )
+        ])
+        logging.info("Carousel sent OK")
+    except Exception:
+        logging.error("Carousel send failed: %s", traceback.format_exc())
+        push_msg(user_id, [txt("❌ Could not load cards. Please type Start to try again.")])
 
 
 # ---------------- WEBHOOK ----------------
@@ -413,8 +449,7 @@ def callback():
             if not hasattr(event.message, "text"):
                 continue
 
-            raw = event.message.text.strip()
-            text = raw.lower()
+            text = event.message.text.strip().lower()
             step = user.get("step", "")
             logging.info("TEXT=[%s]  STEP=[%s]", text, step)
 
@@ -466,14 +501,14 @@ def callback():
                     "1 - $280k – $300k"
                 )])
 
-            # ---- STEP 4: PRICE → searching ----
+            # ---- STEP 4: PRICE ----
             elif step == "choose_price" and text == "1":
                 user["step"] = "confirm_show"
                 reply_msg(event.reply_token, [txt(
                     "🔍 Searching for apartments..."
                 )])
                 push_msg(user_id, [txt(
-                    "✅ I found 3 apartments that match your request!\n"
+                    "🏠 I found 3 apartments that match your request!\n"
                     "📍 Downtown Austin  |  💰 $282k – $300k\n\n"
                     "Would you like to see them?",
                     qr_yes_show()
@@ -483,9 +518,9 @@ def callback():
             elif step == "confirm_show" and text == "yes show me":
                 user["step"] = "browsing"
                 reply_msg(event.reply_token, [txt(
-                    "🏠 Here are your apartments! Swipe to browse 👇"
+                    "🏙 Here are your apartments! Swipe to browse 👇"
                 )])
-                send_carousel_with_qr(user_id)
+                send_carousel(user_id, APT_KEYS)
 
             # ---- BROWSING: GET ADVICE ----
             elif step == "browsing" and text == "get advice":
@@ -499,23 +534,18 @@ def callback():
             elif step == "browsing" and text == "view one again":
                 user["step"] = "view_one"
                 reply_msg(event.reply_token, [txt(
-                    "Which apartment would you like to see again?",
+                    "👀 Which apartment would you like to see again?",
                     qr_view_one()
                 )])
 
             # ---- VIEW ONE: PICK ----
             elif step == "view_one" and text in ["view luxor", "view miracle", "view victory"]:
                 key = text.split()[1]
-                mode = user.get("assistant_type", "friendly")
                 user["step"] = "browsing"
-                card = build_carousel_one(key, mode)
-                reply_msg(event.reply_token, [
-                    txt("📋 Here is " + apartments[key]["title"] + " again:")
-                ])
-                push_msg(user_id, [
-                    flex_msg(card, apartments[key]["title"]),
-                    txt("What would you like to do next?", qr_after_carousel())
-                ])
+                reply_msg(event.reply_token, [txt(
+                    "📋 Here is " + apartments[key]["title"] + " again:"
+                )])
+                send_carousel(user_id, [key])
 
             # ---- BROWSING: I MADE MY CHOICE ----
             elif step == "browsing" and text == "i made my choice":
@@ -530,25 +560,23 @@ def callback():
                 key = text.split()[1]
                 user["chosen"] = key
                 user["step"] = "finish"
-
                 summaries = {
                     "luxor": (
                         "✨ Excellent choice!\n"
                         "Modern living in the heart of Austin.\n"
-                        "Free Wi-Fi, metro nearby, move-in ready."
+                        "📡 Free Wi-Fi, metro nearby, move-in ready."
                     ),
                     "miracle": (
                         "🌿 Great pick!\n"
                         "Peaceful and green neighborhood.\n"
-                        "School nearby, free parking, renovated."
+                        "🌳 School nearby, free parking, renovated."
                     ),
                     "victory": (
                         "🏛 Bold choice!\n"
                         "Historic gem with strong potential.\n"
-                        "Free bread and milk delivery every day."
+                        "🍞 Free bread and milk delivery every day."
                     )
                 }
-
                 reply_msg(event.reply_token, [txt(
                     "🎉 You selected: " + apartments[key]["title"] + "\n\n"
                     + summaries[key] + "\n\n"
@@ -573,7 +601,7 @@ def callback():
             # ---- UNKNOWN ----
             else:
                 reply_msg(event.reply_token, [txt(
-                    "Please type Start to begin. 🏡"
+                    "🏡 Please type Start to begin."
                 )])
 
         return "OK", 200
@@ -586,6 +614,7 @@ def callback():
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
 
 
 
