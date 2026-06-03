@@ -10,30 +10,18 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
-    ReplyMessageRequest,
-    TextMessage,
-    QuickReply,
-    QuickReplyItem,
-    MessageAction
 )
-
 from linebot.v3.webhook import WebhookParser
 from linebot.v3.webhooks import MessageEvent, FollowEvent
 
-# ---------------- LOGGING ----------------
-
 logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
-
-# ---------------- TOKENS ----------------
 
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
-api_client = ApiClient(configuration)
-line_bot_api = MessagingApi(api_client)
 
 # ---------------- STATE ----------------
 
@@ -194,8 +182,13 @@ apartments = {
 
 APT_KEYS = ["luxor", "miracle", "victory"]
 
+MODE_LABELS = {
+    "friendly": "😊 Friendly",
+    "guide": "🧭 Guide",
+    "expert": "🧠 Expert"
+}
 
-# ---------------- LINE PUSH (direct requests, no SDK) ----------------
+# ---------------- HTTP HELPERS ----------------
 
 def line_push(user_id, messages_payload):
     resp = requests.post(
@@ -223,6 +216,98 @@ def line_reply(reply_token, messages_payload):
     )
     logging.info("line_reply status=%s body=%s", resp.status_code, resp.text)
     return resp.status_code == 200
+
+
+# ---------------- QUICK REPLY HELPERS ----------------
+
+def qr_items(items):
+    return {
+        "items": [
+            {
+                "type": "action",
+                "action": {"type": "message", "label": label, "text": text}
+            }
+            for label, text in items
+        ]
+    }
+
+
+def txt_msg(text, quick_reply=None):
+    msg = {"type": "text", "text": text}
+    if quick_reply:
+        msg["quickReply"] = quick_reply
+    return msg
+
+
+# Static quick replies
+QR_AFTER_CAROUSEL = qr_items([
+    ("📸 See Photos", "see photos"),
+    ("💬 Get Advice", "get advice"),
+    ("✅ I Made My Choice", "i made my choice")
+])
+
+QR_PHOTO_PICK = qr_items([
+    ("🏢 Luxor Photos", "photos luxor"),
+    ("🌿 Miracle Photos", "photos miracle"),
+    ("🏛 Victory Photos", "photos victory")
+])
+
+QR_AFTER_PHOTOS = qr_items([
+    ("💬 Get Advice", "get advice"),
+    ("🔁 View Cards Again", "view one again"),
+    ("✅ I Made My Choice", "i made my choice")
+])
+
+QR_VIEW_ONE = qr_items([
+    ("🏢 Luxor", "view luxor"),
+    ("🌿 Miracle", "view miracle"),
+    ("🏛 Victory", "view victory")
+])
+
+QR_FINAL_CHOICE = qr_items([
+    ("🏢 Luxor", "choose luxor"),
+    ("🌿 Miracle", "choose miracle"),
+    ("🏛 Victory", "choose victory")
+])
+
+QR_YES_SHOW = qr_items([
+    ("👀 Yes, show me!", "yes show me")
+])
+
+QR_CONFIRM_EXIT = qr_items([
+    ("✅ Yes, finish", "confirm exit"),
+    ("🔄 No, keep going", "keep going")
+])
+
+
+def qr_after_choice(seen_modes):
+    """
+    Quick reply after final choice.
+    Always shows Contact + Mortgage.
+    Shows 🟢 Choose AI Assistant only if not all 3 modes seen yet.
+    If all 3 modes seen, shows a Finish button instead.
+    """
+    items = [
+        ("📞 Contact Agent", "contact agent"),
+        ("🏦 Mortgage Info", "mortgage info"),
+    ]
+    if len(seen_modes) < 3:
+        remaining = 3 - len(seen_modes)
+        items.append((f"🟢 Choose AI Assistant ({remaining} left)", "choose ai assistant"))
+    else:
+        items.append(("🏁 Finish Session", "finish session"))
+    return qr_items(items)
+
+
+def qr_choose_mode(seen_modes):
+    """Show only unseen modes."""
+    all_modes = [("1", "friendly"), ("2", "guide"), ("3", "expert")]
+    items = []
+    for num, mode in all_modes:
+        if mode not in seen_modes:
+            label = f"{num} - {MODE_LABELS[mode]}"
+            items.append((label, num))
+    return qr_items(items) if items else None
 
 
 # ---------------- CARD BUILDER ----------------
@@ -331,7 +416,6 @@ def build_info_bubble(key, mode):
 
 
 def build_main_carousel(keys, mode):
-    """Build Flex carousel — only 1 info bubble per apartment (no extra photo bubbles)."""
     bubbles = [build_info_bubble(key, mode) for key in keys]
     return {
         "type": "flex",
@@ -344,7 +428,6 @@ def build_main_carousel(keys, mode):
 
 
 def build_image_carousel(key):
-    """Build native LINE imageCarousel for apartment photos (lightweight, swipeable)."""
     apt = apartments[key]
     columns = []
     for i, photo_url in enumerate(apt["photos"], start=1):
@@ -366,78 +449,11 @@ def build_image_carousel(key):
     }
 
 
-# ---------------- QUICK REPLY HELPERS ----------------
-
-def qr_items(items):
-    """items = list of (label, text) tuples"""
-    return {
-        "items": [
-            {
-                "type": "action",
-                "action": {
-                    "type": "message",
-                    "label": label,
-                    "text": text
-                }
-            }
-            for label, text in items
-        ]
-    }
-
-
-QR_AFTER_CAROUSEL = qr_items([
-    ("📸 See Photos", "see photos"),
-    ("💬 Get Advice", "get advice"),
-    ("✅ I Made My Choice", "i made my choice")
-])
-
-QR_PHOTO_PICK = qr_items([
-    ("🏢 Luxor Photos", "photos luxor"),
-    ("🌿 Miracle Photos", "photos miracle"),
-    ("🏛 Victory Photos", "photos victory")
-])
-
-QR_AFTER_PHOTOS = qr_items([
-    ("💬 Get Advice", "get advice"),
-    ("🔁 View Cards Again", "view one again"),
-    ("✅ I Made My Choice", "i made my choice")
-])
-
-QR_VIEW_ONE = qr_items([
-    ("🏢 Luxor", "view luxor"),
-    ("🌿 Miracle", "view miracle"),
-    ("🏛 Victory", "view victory")
-])
-
-QR_FINAL_CHOICE = qr_items([
-    ("🏢 Luxor", "choose luxor"),
-    ("🌿 Miracle", "choose miracle"),
-    ("🏛 Victory", "choose victory")
-])
-
-QR_FINISH = qr_items([
-    ("📞 Contact Agent", "contact agent"),
-    ("🏦 Mortgage Info", "mortgage info")
-])
-
-QR_YES_SHOW = qr_items([
-    ("👀 Yes, show me!", "yes show me")
-])
-
-
-def txt_msg(text, quick_reply=None):
-    msg = {"type": "text", "text": text}
-    if quick_reply:
-        msg["quickReply"] = quick_reply
-    return msg
-
-
 # ---------------- SEND HELPERS ----------------
 
 def send_main_carousel(user_id):
     mode = get_user(user_id).get("assistant_type", "friendly")
     carousel = build_main_carousel(APT_KEYS, mode)
-    logging.info("Sending main carousel with %d bubbles", len(APT_KEYS))
     ok = line_push(user_id, [
         carousel,
         txt_msg(
@@ -447,16 +463,13 @@ def send_main_carousel(user_id):
         )
     ])
     if not ok:
-        line_push(user_id, [txt_msg(
-            "❌ Could not load apartment cards. Please type Start to try again."
-        )])
+        line_push(user_id, [txt_msg("❌ Could not load cards. Please type Start to try again.")])
 
 
 def send_single_carousel(user_id, key):
     mode = get_user(user_id).get("assistant_type", "friendly")
     bubble = build_info_bubble(key, mode)
     apt = apartments[key]
-    logging.info("Sending single card for %s", key)
     ok = line_push(user_id, [
         {
             "type": "flex",
@@ -469,15 +482,12 @@ def send_single_carousel(user_id, key):
         )
     ])
     if not ok:
-        line_push(user_id, [txt_msg(
-            "❌ Could not load apartment card. Please type Start to try again."
-        )])
+        line_push(user_id, [txt_msg("❌ Could not load card. Please type Start to try again.")])
 
 
 def send_photos(user_id, key):
     apt = apartments[key]
     image_carousel = build_image_carousel(key)
-    logging.info("Sending image carousel for %s (%d photos)", key, len(apt["photos"]))
     ok = line_push(user_id, [
         txt_msg(f"📸 Photos of {apt['title']} — swipe to see all 3 👇"),
         image_carousel,
@@ -488,9 +498,49 @@ def send_photos(user_id, key):
         )
     ])
     if not ok:
-        line_push(user_id, [txt_msg(
-            "❌ Could not load photos. Please type Start to try again."
-        )])
+        line_push(user_id, [txt_msg("❌ Could not load photos. Please type Start to try again.")])
+
+
+def send_ai_insights(user_id, mode):
+    """
+    Send fresh AI insights for all 3 apartments in the chosen mode.
+    Does NOT re-send the full carousel — just text insights.
+    """
+    lines = [f"🤖 {MODE_LABELS[mode]} mode — fresh insights for each apartment:\n"]
+    for key in APT_KEYS:
+        apt = apartments[key]
+        if mode == "friendly":
+            insight = random.choice(friendly_messages[key])
+        elif mode == "guide":
+            insight = random.choice(guide_messages[key])
+        else:
+            insight = random.choice(expert_messages[key])
+        lines.append(f"🏠 {apt['title']} ({apt['price']})\n💡 {insight}")
+    lines.append("\nYou can still view photos or get advice below.")
+    line_push(user_id, [
+        txt_msg("\n\n".join(lines), QR_AFTER_CAROUSEL)
+    ])
+
+
+# ---------------- SUMMARIES ----------------
+
+CHOICE_SUMMARIES = {
+    "luxor": (
+        "✨ Excellent choice!\n"
+        "Modern living in the heart of Austin.\n"
+        "📡 Free Wi-Fi, metro nearby, move-in ready."
+    ),
+    "miracle": (
+        "🌿 Great pick!\n"
+        "Peaceful and green neighborhood.\n"
+        "🌳 School nearby, free parking, renovated."
+    ),
+    "victory": (
+        "🏛 Bold choice!\n"
+        "Historic gem with strong potential.\n"
+        "🍞 Free bread and milk delivery every day."
+    )
+}
 
 
 # ---------------- WEBHOOK ----------------
@@ -508,7 +558,7 @@ def callback():
                 continue
             user = get_user(user_id)
 
-            # -------- WELCOME on first add --------
+            # ---- FOLLOW ----
             if isinstance(event, FollowEvent):
                 line_push(user_id, [txt_msg(
                     "👋 Welcome to AI Housing Assistant!\n\n"
@@ -526,9 +576,12 @@ def callback():
             step = user.get("step", "")
             logging.info("TEXT=[%s]  STEP=[%s]  STATE=%s", text, step, str(user))
 
-            # -------- START --------
+            # ---- START ----
             if text == "start":
-                user_state[user_id] = {"step": "choose_assistant"}
+                user_state[user_id] = {
+                    "step": "choose_assistant",
+                    "seen_modes": []          # track which AI modes user has tried
+                }
                 line_reply(event.reply_token, [txt_msg(
                     "🏡 Welcome to AI Housing Assistant!\n\n"
                     "I will help you find the perfect apartment in Austin.\n\n"
@@ -538,19 +591,37 @@ def callback():
                     "3 - 🧠 Expert"
                 )])
 
-            # -------- CHOOSE ASSISTANT --------
+            # ---- CHOOSE ASSISTANT (initial + loop) ----
             elif step == "choose_assistant" and text in ["1", "2", "3"]:
                 modes = {"1": "friendly", "2": "guide", "3": "expert"}
-                labels = {"1": "😊 Friendly", "2": "🧭 Guide", "3": "🧠 Expert"}
-                user["assistant_type"] = modes[text]
-                user["step"] = "choose_city"
-                line_reply(event.reply_token, [txt_msg(
-                    "✅ " + labels[text] + " mode selected!\n\n"
-                    "🏙 Step 1: Choose city\n\n"
-                    "1 - Austin"
-                )])
+                mode = modes[text]
+                user["assistant_type"] = mode
 
-            # -------- CHOOSE CITY --------
+                # Mark this mode as seen
+                if mode not in user.get("seen_modes", []):
+                    user.setdefault("seen_modes", []).append(mode)
+
+                prev_step = user.get("prev_step", "")
+
+                # If returning from choice screen — send insights, not full carousel
+                if prev_step == "finish":
+                    user["step"] = "browsing"
+                    user["prev_step"] = ""
+                    line_reply(event.reply_token, [txt_msg(
+                        f"✅ Switched to {MODE_LABELS[mode]} mode!\n\n"
+                        "Here are updated AI insights — your apartment cards are still above. 👆"
+                    )])
+                    send_ai_insights(user_id, mode)
+                else:
+                    # First time: ask city
+                    user["step"] = "choose_city"
+                    line_reply(event.reply_token, [txt_msg(
+                        f"✅ {MODE_LABELS[mode]} mode selected!\n\n"
+                        "🏙 Step 1: Choose city\n\n"
+                        "1 - Austin"
+                    )])
+
+            # ---- CHOOSE CITY ----
             elif step == "choose_city" and text == "1":
                 user["step"] = "choose_area"
                 line_reply(event.reply_token, [txt_msg(
@@ -558,7 +629,7 @@ def callback():
                     "1 - Downtown"
                 )])
 
-            # -------- CHOOSE AREA --------
+            # ---- CHOOSE AREA ----
             elif step == "choose_area" and text == "1":
                 user["step"] = "choose_payment"
                 line_reply(event.reply_token, [txt_msg(
@@ -566,7 +637,7 @@ def callback():
                     "1 - Mortgage"
                 )])
 
-            # -------- CHOOSE PAYMENT --------
+            # ---- CHOOSE PAYMENT ----
             elif step == "choose_payment" and text == "1":
                 user["step"] = "choose_price"
                 line_reply(event.reply_token, [txt_msg(
@@ -574,12 +645,10 @@ def callback():
                     "1 - $280k – $300k"
                 )])
 
-            # -------- CHOOSE PRICE --------
+            # ---- CHOOSE PRICE ----
             elif step == "choose_price" and text == "1":
                 user["step"] = "confirm_show"
-                line_reply(event.reply_token, [txt_msg(
-                    "🔍 Searching for apartments..."
-                )])
+                line_reply(event.reply_token, [txt_msg("🔍 Searching for apartments...")])
                 line_push(user_id, [txt_msg(
                     "🏠 I found 3 apartments that match your request!\n"
                     "📍 Downtown Austin  |  💰 $282k – $300k\n\n"
@@ -587,7 +656,7 @@ def callback():
                     QR_YES_SHOW
                 )])
 
-            # -------- CONFIRM SHOW --------
+            # ---- CONFIRM SHOW ----
             elif step == "confirm_show" and text == "yes show me":
                 user["step"] = "browsing"
                 line_reply(event.reply_token, [txt_msg(
@@ -595,7 +664,7 @@ def callback():
                 )])
                 send_main_carousel(user_id)
 
-            # -------- SEE PHOTOS (from browsing) --------
+            # ---- SEE PHOTOS ----
             elif step == "browsing" and text == "see photos":
                 user["step"] = "pick_photos"
                 line_reply(event.reply_token, [txt_msg(
@@ -603,16 +672,16 @@ def callback():
                     QR_PHOTO_PICK
                 )])
 
-            # -------- PICK PHOTOS --------
+            # ---- PICK PHOTOS ----
             elif step == "pick_photos" and text in ["photos luxor", "photos miracle", "photos victory"]:
                 key = text.split()[1]
                 user["step"] = "browsing"
                 line_reply(event.reply_token, [txt_msg(
-                    "📸 Loading photos of " + apartments[key]["title"] + "..."
+                    f"📸 Loading photos of {apartments[key]['title']}..."
                 )])
                 send_photos(user_id, key)
 
-            # -------- GET ADVICE --------
+            # ---- GET ADVICE ----
             elif step == "browsing" and text == "get advice":
                 mode = user.get("assistant_type", "friendly")
                 line_reply(event.reply_token, [txt_msg(
@@ -620,7 +689,7 @@ def callback():
                     QR_AFTER_CAROUSEL
                 )])
 
-            # -------- VIEW ONE AGAIN --------
+            # ---- VIEW ONE AGAIN ----
             elif step == "browsing" and text == "view one again":
                 user["step"] = "view_one"
                 line_reply(event.reply_token, [txt_msg(
@@ -632,11 +701,11 @@ def callback():
                 key = text.split()[1]
                 user["step"] = "browsing"
                 line_reply(event.reply_token, [txt_msg(
-                    "📋 Loading " + apartments[key]["title"] + " for you..."
+                    f"📋 Loading {apartments[key]['title']} for you..."
                 )])
                 send_single_carousel(user_id, key)
 
-            # -------- I MADE MY CHOICE --------
+            # ---- I MADE MY CHOICE ----
             elif step == "browsing" and text == "i made my choice":
                 user["step"] = "final_choice"
                 line_reply(event.reply_token, [txt_msg(
@@ -644,37 +713,77 @@ def callback():
                     QR_FINAL_CHOICE
                 )])
 
-            # -------- FINAL CHOICE --------
-            elif step == "final_choice" and text in ["choose luxor", "choose miracle", "choose victory"]:
+            # ---- FINAL CHOICE (from browsing OR from photo tap) ----
+            elif (step in ["final_choice", "browsing"]) and text in ["choose luxor", "choose miracle", "choose victory"]:
                 key = text.split()[1]
                 user["chosen"] = key
                 user["step"] = "finish"
-                summaries = {
-                    "luxor": (
-                        "✨ Excellent choice!\n"
-                        "Modern living in the heart of Austin.\n"
-                        "📡 Free Wi-Fi, metro nearby, move-in ready."
-                    ),
-                    "miracle": (
-                        "🌿 Great pick!\n"
-                        "Peaceful and green neighborhood.\n"
-                        "🌳 School nearby, free parking, renovated."
-                    ),
-                    "victory": (
-                        "🏛 Bold choice!\n"
-                        "Historic gem with strong potential.\n"
-                        "🍞 Free bread and milk delivery every day."
-                    )
-                }
-                # also allow choosing from photo carousel tap
+                user["prev_step"] = "finish"
+                seen = user.get("seen_modes", [])
                 line_reply(event.reply_token, [txt_msg(
-                    "🎉 You selected: " + apartments[key]["title"] + "\n\n"
-                    + summaries[key] + "\n\n"
+                    f"🎉 You selected: {apartments[key]['title']}\n\n"
+                    + CHOICE_SUMMARIES[key] + "\n\n"
                     "What would you like to do next?",
-                    QR_FINISH
+                    qr_after_choice(seen)
                 )])
 
-            # -------- FINISH --------
+            # ---- CHOOSE AI ASSISTANT (from finish screen) ----
+            elif step == "finish" and text == "choose ai assistant":
+                seen = user.get("seen_modes", [])
+                current = user.get("assistant_type", "friendly")
+                unseen = [m for m in ["friendly", "guide", "expert"] if m not in seen]
+
+                # Build message listing remaining modes
+                mode_lines = []
+                num_map = {"friendly": "1", "guide": "2", "expert": "3"}
+                for mode_key in ["friendly", "guide", "expert"]:
+                    if mode_key not in seen:
+                        mode_lines.append(f"{num_map[mode_key]} - {MODE_LABELS[mode_key]}")
+
+                user["step"] = "choose_assistant"
+                qr = qr_choose_mode(seen)
+                line_reply(event.reply_token, [txt_msg(
+                    "🤖 Please choose your assistant type:\n\n"
+                    + "\n".join(mode_lines) +
+                    "\n\nYou will see fresh AI insights without reloading the cards.",
+                    qr
+                )])
+
+            # ---- FINISH SESSION (after all 3 modes seen) ----
+            elif text == "finish session":
+                chosen_key = user.get("chosen", "")
+                chosen_title = apartments[chosen_key]["title"] if chosen_key else "an apartment"
+                user["step"] = "done"
+                line_reply(event.reply_token, [txt_msg(
+                    f"🏁 Thank you for using AI Housing Assistant!\n\n"
+                    f"Your choice: {chosen_title}\n\n"
+                    "You have explored all 3 AI perspectives.\n\n"
+                    "Would you like to finish?",
+                    QR_CONFIRM_EXIT
+                )])
+
+            # ---- CONFIRM EXIT ----
+            elif text == "confirm exit":
+                chosen_key = user.get("chosen", "")
+                chosen_title = apartments[chosen_key]["title"] if chosen_key else "an apartment"
+                user_state[user_id] = {}  # clear state
+                line_reply(event.reply_token, [txt_msg(
+                    f"✅ Session complete!\n\n"
+                    f"Your selected apartment: {chosen_title}\n\n"
+                    "Our agent will contact you shortly. 🙌\n\n"
+                    "Type Start anytime to explore again."
+                )])
+
+            # ---- KEEP GOING ----
+            elif text == "keep going":
+                user["step"] = "finish"
+                seen = user.get("seen_modes", [])
+                line_reply(event.reply_token, [txt_msg(
+                    "👍 No problem! What would you like to do?",
+                    qr_after_choice(seen)
+                )])
+
+            # ---- CONTACT / MORTGAGE ----
             elif text == "contact agent":
                 line_reply(event.reply_token, [txt_msg(
                     "📞 You can contact our agent.\n"
@@ -689,7 +798,7 @@ def callback():
                     "🏡 To view apartments again — type Start"
                 )])
 
-            # -------- FALLBACK --------
+            # ---- FALLBACK ----
             else:
                 line_reply(event.reply_token, [txt_msg(
                     "🏡 Please type Start to begin."
@@ -702,6 +811,5 @@ def callback():
         return 'error', 500
 
 
-# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
