@@ -524,7 +524,7 @@ def callback():
 
             text = event.message.text.strip().lower()
             step = user.get("step", "")
-            logging.info("TEXT=[%s]  STEP=[%s]", text, step)
+            logging.info("TEXT=[%s]  STEP=[%s]  STATE=%s", text, step, str(user))
 
             # -------- START --------
             if text == "start":
@@ -675,14 +675,14 @@ def callback():
                 )])
 
             # -------- FINISH --------
-            elif step == "finish" and text == "contact agent":
+            elif text == "contact agent":
                 line_reply(event.reply_token, [txt_msg(
                     "📞 You can contact our agent.\n"
                     "We will get back to you shortly!\n\n"
                     "🏡 To view apartments again — type Start"
                 )])
 
-            elif step == "finish" and text == "mortgage info":
+            elif text == "mortgage info":
                 line_reply(event.reply_token, [txt_msg(
                     "🏦 You can contact a mortgage specialist.\n"
                     "We will help you find the best rates!\n\n"
