@@ -13,6 +13,7 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage,
     FlexMessage,
+    FlexContainer,
     QuickReply,
     QuickReplyItem,
     MessageAction
@@ -413,7 +414,7 @@ def send_carousel(user_id, keys):
     try:
         flex = FlexMessage(
             alt_text="🏠 Apartments in Downtown Austin",
-            contents=carousel
+            contents=FlexContainer.from_dict(carousel)
         )
         push_msg(user_id, [
             flex,
@@ -614,6 +615,7 @@ def callback():
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
 
 
 
