@@ -18,7 +18,7 @@ from linebot.v3.messaging import (
 )
 
 from linebot.v3.webhook import WebhookParser
-from linebot.v3.webhooks import MessageEvent
+from linebot.v3.webhooks import MessageEvent, FollowEvent
 
 # ---------------- LOGGING ----------------
 
@@ -507,6 +507,16 @@ def callback():
             if not user_id:
                 continue
             user = get_user(user_id)
+
+            # -------- WELCOME on first add --------
+            if isinstance(event, FollowEvent):
+                line_push(user_id, [txt_msg(
+                    "👋 Welcome to AI Housing Assistant!\n\n"
+                    "I will help you find your perfect apartment in Austin.\n\n"
+                    "🏡 Type Start to begin!"
+                )])
+                continue
+
             if not isinstance(event, MessageEvent):
                 continue
             if not hasattr(event.message, 'text'):
@@ -668,13 +678,15 @@ def callback():
             elif step == "finish" and text == "contact agent":
                 line_reply(event.reply_token, [txt_msg(
                     "📞 You can contact our agent.\n"
-                    "We will get back to you shortly!"
+                    "We will get back to you shortly!\n\n"
+                    "🏡 To view apartments again — type Start"
                 )])
 
             elif step == "finish" and text == "mortgage info":
                 line_reply(event.reply_token, [txt_msg(
                     "🏦 You can contact a mortgage specialist.\n"
-                    "We will help you find the best rates!"
+                    "We will help you find the best rates!\n\n"
+                    "🏡 To view apartments again — type Start"
                 )])
 
             # -------- FALLBACK --------
