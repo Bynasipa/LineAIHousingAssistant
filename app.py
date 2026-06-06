@@ -239,76 +239,60 @@ def txt_msg(text, quick_reply=None):
     return msg
 
 
-# Static quick replies
-# LINE label hard limit: 20 characters (including emoji which count as 1 char each)
-# All labels below are verified ≤ 20 chars.
-
 QR_AFTER_CAROUSEL = qr_items([
-    ("📸 Photos", "see photos"),           # 9
-    ("💬 Get Advice", "get advice"),       # 13
-    ("✅ My Choice", "i made my choice")   # 12
+    ("📸 Photos", "see photos"),
+    ("💬 Get Advice", "get advice"),
+    ("✅ My Choice", "i made my choice")
 ])
 
 QR_PHOTO_PICK = qr_items([
-    ("🏢 Luxor Photos", "photos luxor"),   # 15
-    ("🌿 Miracle Photos", "photos miracle"), # 17
-    ("🏛 Victory Photos", "photos victory") # 17
+    ("🏢 Luxor Photos", "photos luxor"),
+    ("🌿 Miracle Photos", "photos miracle"),
+    ("🏛 Victory Photos", "photos victory")
 ])
 
 QR_AFTER_PHOTOS = qr_items([
-    ("💬 Get Advice", "get advice"),       # 13
-    ("🔁 Cards Again", "view one again"),  # 14
-    ("✅ My Choice", "i made my choice")   # 12
+    ("💬 Get Advice", "get advice"),
+    ("🔁 Cards Again", "view one again"),
+    ("✅ My Choice", "i made my choice")
 ])
 
 QR_VIEW_ONE = qr_items([
-    ("🏢 Luxor", "view luxor"),            # 8
-    ("🌿 Miracle", "view miracle"),        # 10
-    ("🏛 Victory", "view victory")         # 10
+    ("🏢 Luxor", "view luxor"),
+    ("🌿 Miracle", "view miracle"),
+    ("🏛 Victory", "view victory")
 ])
 
 QR_FINAL_CHOICE = qr_items([
-    ("🏢 Luxor", "choose luxor"),          # 8
-    ("🌿 Miracle", "choose miracle"),      # 10
-    ("🏛 Victory", "choose victory")       # 10
+    ("🏢 Luxor", "choose luxor"),
+    ("🌿 Miracle", "choose miracle"),
+    ("🏛 Victory", "choose victory")
 ])
 
 QR_YES_SHOW = qr_items([
-    ("👀 Yes, show me!", "yes show me")    # 17
+    ("👀 Yes, show me!", "yes show me")
 ])
 
 QR_CONFIRM_EXIT = qr_items([
-    ("✅ Yes, finish", "confirm exit"),    # 15
-    ("🔄 Keep going", "keep going")        # 13
+    ("✅ Yes, finish", "confirm exit"),
+    ("🔄 Keep going", "keep going")
 ])
 
 
 def qr_after_choice(seen_modes):
-    """
-    Quick reply after final choice.
-    Always shows Contact + Mortgage.
-    Shows AI Assistant button only if not all 3 modes seen yet.
-    If all 3 modes seen, shows Finish button instead.
-    All labels strictly ≤ 20 chars.
-    """
     items = [
-        ("📞 Contact Agent", "contact agent"),  # 16
-        ("🏦 Mortgage Info", "mortgage info"),  # 16
+        ("📞 Contact Agent", "contact agent"),
+        ("🏦 Mortgage Info", "mortgage info"),
     ]
     if len(seen_modes) < 3:
         remaining = 3 - len(seen_modes)
-        # "🟢 AI Mode (2 left)" = 19 chars ✓
         items.append((f"🟢 AI Mode ({remaining} left)", "choose ai assistant"))
     else:
-        items.append(("🏁 Finish Session", "finish session"))  # 17
+        items.append(("🏁 Finish Session", "finish session"))
     return qr_items(items)
 
 
 def qr_choose_mode(seen_modes):
-    """Show only unseen modes. Labels ≤ 20 chars."""
-    # "1 - 😊 Friendly" = 15 chars ✓
-    # "2 - 🧭 Guide"    = 12 chars ✓
-    # "3 - 🧠 Expert"   = 13 chars ✓
     all_modes = [("1", "friendly"), ("2", "guide"), ("3", "expert")]
     items = []
     for num, mode in all_modes:
@@ -510,10 +494,6 @@ def send_photos(user_id, key):
 
 
 def send_ai_insights(user_id, mode):
-    """
-    Send fresh AI insights for all 3 apartments in the chosen mode.
-    Does NOT re-send the full carousel — just text insights.
-    """
     lines = [f"🤖 {MODE_LABELS[mode]} mode — fresh insights for each apartment:\n"]
     for key in APT_KEYS:
         apt = apartments[key]
@@ -588,7 +568,7 @@ def callback():
             if text == "start":
                 user_state[user_id] = {
                     "step": "choose_assistant",
-                    "seen_modes": []          # track which AI modes user has tried
+                    "seen_modes": []
                 }
                 line_reply(event.reply_token, [txt_msg(
                     "🏡 Welcome to AI Housing Assistant!\n\n"
@@ -605,13 +585,11 @@ def callback():
                 mode = modes[text]
                 user["assistant_type"] = mode
 
-                # Mark this mode as seen
                 if mode not in user.get("seen_modes", []):
                     user.setdefault("seen_modes", []).append(mode)
 
                 prev_step = user.get("prev_step", "")
 
-                # If returning from choice screen — send insights, not full carousel
                 if prev_step == "finish":
                     user["step"] = "browsing"
                     user["prev_step"] = ""
@@ -621,7 +599,6 @@ def callback():
                     )])
                     send_ai_insights(user_id, mode)
                 else:
-                    # First time: ask city
                     user["step"] = "choose_city"
                     line_reply(event.reply_token, [txt_msg(
                         f"✅ {MODE_LABELS[mode]} mode selected!\n\n"
@@ -671,6 +648,7 @@ def callback():
                     "🏙 Here are your apartments! Swipe to browse 👇"
                 )])
                 send_main_carousel(user_id)
+                send_ai_insights(user_id, user.get("assistant_type", "friendly"))  # ← ДОБАВЛЕНО
 
             # ---- SEE PHOTOS ----
             elif step == "browsing" and text == "see photos":
@@ -738,10 +716,6 @@ def callback():
             # ---- CHOOSE AI ASSISTANT (from finish screen) ----
             elif step == "finish" and text == "choose ai assistant":
                 seen = user.get("seen_modes", [])
-                current = user.get("assistant_type", "friendly")
-                unseen = [m for m in ["friendly", "guide", "expert"] if m not in seen]
-
-                # Build message listing remaining modes
                 mode_lines = []
                 num_map = {"friendly": "1", "guide": "2", "expert": "3"}
                 for mode_key in ["friendly", "guide", "expert"]:
@@ -774,7 +748,7 @@ def callback():
             elif text == "confirm exit":
                 chosen_key = user.get("chosen", "")
                 chosen_title = apartments[chosen_key]["title"] if chosen_key else "an apartment"
-                user_state[user_id] = {}  # clear state
+                user_state[user_id] = {}
                 line_reply(event.reply_token, [txt_msg(
                     f"✅ Session complete!\n\n"
                     f"Your selected apartment: {chosen_title}\n\n"
